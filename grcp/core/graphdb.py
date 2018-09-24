@@ -118,11 +118,11 @@ class Neo4J(GraphDB):
         qry = 'MERGE ( node:{kind} {uid} ) '\
               'ON MATCH SET node=$properties, node.uid=id(node) '\
               'ON CREATE SET node=$properties, node.uid=id(node) '\
-              'RETURN id(node) AS uid'
+              'RETURN node'
         records = list(self.exec_query(
                         qry.format(kind=kind, uid=uid), properties=properties))
         if records:
-            return records[0]['uid']
+            return records[0]['node']
         return None
 
     def count_outgoing_edges(self, src, edge=None):
@@ -158,13 +158,13 @@ class Neo4J(GraphDB):
                   'MERGE (peer)-[link:{label}]->(prefix {dst_kind} {dst}) '\
                   'ON MATCH SET link = $properties, link.uid = id(link) '\
                   'ON CREATE SET link=$properties, link.uid=id(link), prefix.uid=id(prefix) '\
-                  'RETURN link.uid as uid'
+                  'RETURN link.uid AS uid'
         else:
             if dst_kind:
                 dst_kind = ':%s' % dst_kind
             qry = 'MATCH ( peer {src} ), ( prefix {dst_kind} {dst} ) '\
                   'MERGE (peer)-[link:{label}]->(prefix) '\
-                  'SET link= $properties, link.uid = id(link) RETURN link.uid as uid'
+                  'SET link= $properties, link.uid = id(link) RETURN link.uid AS uid'
         records = list(self.exec_query(
                 qry.format(
                     src=src_str, dst=dst_str, label=label, dst_kind=dst_kind),
@@ -179,11 +179,9 @@ class Neo4J(GraphDB):
         src_str = self._dict_to_cypher(src)
         dst_str = self._dict_to_cypher(dst)
         qry = 'MATCH (src {src}) -[link:{label}]->(dst {dst}) '\
-              'DELETE link RETURN link'
+              'DELETE link RETURN link.uid'
         records = list(self.exec_query(qry.format(label=label, src=src_str, dst=dst_str)))
-        if records:
-            return records[0]
-        return None
+        return records
 
 
 class RedisGraph(Neo4J):

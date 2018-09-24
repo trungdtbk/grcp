@@ -371,8 +371,10 @@ class Node(Model):
         properties = self._get_values(self._properties)
         properties['uid'] = self._uid
         labels = self._class_names()
-        uid = self._gdb.create_node(labels=labels, properties=properties)
-        return uid
+        record = self._gdb.create_node(labels=labels, properties=properties)
+        if record:
+            return self.entity_to_model(record)
+        return None
 
     def count_edges(self):
         src = {'label': self.__class__.__name__, 'uid': self._uid}
@@ -450,9 +452,8 @@ class Edge(Model):
             dst['uid'] = self.dst._uid
         dst['labels'] = self.dst._class_names()
         label = self.__class__.__name__
-        uid = self._gdb.create_link(label=label, src=src, dst=dst,
+        return self._gdb.create_link(label=label, src=src, dst=dst,
                                     properties=properties, create_dst=create_dst)
-        return uid
 
     def delete(self):
         properties = {'uid': self._uid}
