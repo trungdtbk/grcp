@@ -144,6 +144,11 @@ class ListProperty(Property):
                 'ListProperty %s accepts only list value; received %r' % (self._name, value))
         return value
 
+    def has(self, item):
+        """Return query.FilterInclude """
+        return query.FilterInclude(self._code_name, 'IN', item)
+    HAS = has
+
     def __neg__(self):
         """Return a descending order on this property."""
         return query.PropertyOrder(self._code_name, query.PropertyOrder.DESCENDING, func='length')
@@ -491,6 +496,7 @@ class Link(Edge):
     loss = LossProperty('loss')
     delay = LatencyProperty('delay')
     bandwidth = BandwidthProperty('bandwidth')
+    utilization = FloatProperty('utilization')
 
 
 class IntraLink(Link):
@@ -505,28 +511,74 @@ class InterLink(Link):
     cost = CostProperty('cost', verbose_name='transit cost')
 
 
-class Path(Model):
-    """Represent a path from a Node to a Prefix."""
-    src = StructuredProperty(Node, 'src')
-    dst = StructuredProperty(Prefix, 'prefix')
-    route = StructuredProperty(Route, 'route')
-    bandwidth = BandwidthProperty('bandwidth')
-    delay = LatencyProperty('delay')
-    weight = WeightProperty('weight')
-    cost = CostProperty('cost')
-    _link_ids = []
-    _node_ids = []
+class InterIngress(InterLink):
+    """Represent ingress link i.e from Neighbor-->Router """
+    pass
+
+
+class InterEgress(InterLink):
+    """Represent egress link i.e from Router-->Neighbor """
+    pass
+
+
+class Mapping(Edge):
+    """Represent a RIB/FIB entry of a node. A mapping links a node to a prefix"""
+    src = IntegerProperty(name='src_uid')
+    dst = IntegerProperty(name='dst_uid')
+    nodes = ListProperty(name='nodes')
+    links = ListProperty(name='links')
+
+
+class PathProperty(type):
+    """Use to override class attribute access.
+    A path has following attributes:
+    - intra_util: utilization of the intra link
+    - inter_util: utilization of the egress link
+    - capacity: minimum capacity of all links
+    - lost: total loss of all links
+    - delay: total delay of all links
+    - cost: total cost of all links
+    - weight: total weight of all links
+    - as_path: as path
+    """
+    _SUPPORTED_PROPERTIES = {
+            'intra_util': IntraLink.utilization,
+            'intra_bw': IntraLink.bandwidth,
+            'intra_loss': IntraLink.loss,
+            'intra_delay': IntraLink.delay,
+            'intra_weight': IntraLink.weight,
+            'inter_bw': InterEgress.bandwidth,
+            'inter_loss': InterEgress.loss,
+            'inter_delay': InterEgress.delay,
+            'inter_cost': InterEgress.cost,
+            'inter_util': InterEgress.utilization,
+            'route_aspath': Route.as_path,
+            'route_pref': Route.local_pref,
+            'route_med': Route.med,
+            'src_uid': IntegerProperty,
+            'dst_uid': IntegerProperty,
+            'nodes': ListProperty,
+            'links': ListProperty,
+        }
+    def __getattr__(cls, attr):
+        if attr in cls._SUPPORTED_PROPERTIES:
+            prop_cls = cls._SUPPORTED_PROPERTIES[attr]
+            if isinstance(prop_cls, Property):
+                prop_cls = prop_cls.__class__
+            prop = prop_cls(name=attr)
+            prop._code_name = 'Path.' + prop._name
+            return prop
+
+
+class Path(Model, metaclass=PathProperty):
+
+    def put(self):
+        raise Exception('method not allowed')
 
     @classmethod
     def neo4j_to_model(cls, record):
-        if record and cls == Path:
-            properties = dict(record[cls.__name__])
-            path = Path(**properties)
-            path.src = cls.entity_to_model(record[cls.src._name])
-            path.dst = cls.entity_to_model(record[cls.dst._name])
-            path.route = cls.entity_to_model(record[cls.route._name])
-            path.route.src = cls.entity_to_model(record[cls.route.src._name])
-            path.route.dst = cls.entity_to_model(record[cls.route.dst._name])
+        if record:
+            path = dict(record[cls.__name__])
             return path
         return None
 

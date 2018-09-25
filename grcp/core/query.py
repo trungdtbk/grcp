@@ -87,6 +87,14 @@ AND = ConjunctionNode
 OR = DisjunctionNode
 
 
+class FilterInclude(FilterNode):
+    def to_cypher(self):
+        out = '{value} {op} {name}'
+        if isinstance(self._value, str):
+            out = '{value} {op} "{name}"'
+        return out.format(name=self._name, op=self._opsymbol, value=self._value)
+
+
 class PropertyOrder(Node):
     ASCENDING = ''
     DESCENDING = 'DESC'
@@ -143,13 +151,15 @@ class Query(object):
             qry = qry.format(src=src, src_kind=src_kind, dst_kind=dst_kind, dst=dst,
                              name=kind, link_kind=kind, where=filter_str, sort=sort_str)
         elif self.kind == model.Path:
-            qry = 'MATCH ({src}: {src_kind}), ({dst}:{dst_kind}), '\
-                   'p=shortestpath(({src})-[:{i_kind}*0..{maxlen}]->(b:{b_kind})), '\
-                  '(b)-[{e_kind}:{e_kind}]->({n_name}:{n_kind})-[{r_name}:{r_kind}]->({dst}) '\
-                  'WITH {src}, {dst}, {e_kind}, {n_name}, {r_name}, RELS(p) AS lp '\
-                  '{where} UNWIND CASE WHEN lp = [] THEN [null] ELSE lp END AS {name} '\
-                  'WITH {n_name}, {src}, {dst}, {r_name}, {group_by} AS {name} '\
-                  'RETURN {src}, {dst}, {name}, {n_name}, {r_name} {sort}'
+            qry = 'MATCH (src:{src_kind}), (dst:{dst_kind}), '\
+                   'p=shortestpath((src)-[:{i_kind}*0..{maxlen}]->(b:{b_kind})), '\
+                  '(b)-[InterEgress:{e_kind}]->(neigh:{n_kind})-[Route:{r_kind}]->(dst) '\
+                  'WITH src, dst, neigh, InterEgress, Route, NODES(p) AS np, RELS(p) AS lp '\
+                  'UNWIND CASE WHEN lp = [] THEN [null] ELSE FILTER(x IN lp WHERE type(x)="IntraLink") END AS IntraLink '\
+                  'WITH {src:src.uid, dst:dst.uid, nodes:[x in np|x.uid]+[neigh.uid, dst.uid], '\
+                  'links:[x in lp|x.uid]+[InterEgress.uid,Route.uid], '\
+                  '{inter}, {intra}, {route}} AS {name} {where} {group_by} '\
+                  'RETURN {name} {sort}'
             group_by = []
             #for name, prop in intra._properties().items():
             for name, prop in model.Path._properties().items():
@@ -163,26 +173,40 @@ class Query(object):
                     func = '{name}:sum({prop}.{name})'
                 if func:
                     group_by.append(func.format(prop=self.kind.__name__, name=name))
-            intra = model.IntraLink
-            inter = model.InterLink
-            src = self.kind.src._name
-            dst = self.kind.dst._name
-            src_kind = self.kind.src._modelclass.__name__
-            dst_kind = self.kind.dst._modelclass.__name__
-            group_by.append('_link_ids:collect({prop}.{name})'.format(prop=self.kind.__name__, name='uid'))
-            group_by.append('{name}:{e_kind}.{name}'.format(e_kind=model.InterLink.__name__, name=self.kind.cost._name))
+            intra_props = []
+            inter_props = []
+            route_props = []
+            for name, prop in model.Path._SUPPORTED_PROPERTIES.items():
+                if 'intra' in name:
+                    intra_props.append((name, prop))
+                elif 'inter' in name:
+                    inter_props.append((name, prop))
+                elif 'route' in name:
+                    route_props.append((name, prop))
+            for rep, kind, props in [
+                    ('{intra}', 'IntraLink', intra_props),
+                    ('{inter}', 'InterEgress', inter_props),
+                    ('{route}', 'Route', route_props)]:
+                prop_str = ','.join(['%s: %s.%s' % (name, kind, prop._name) for name, prop in props])
+                qry = qry.replace(rep, prop_str)
+
+            for (name, kind) in [
+                    ('{src_kind}', model.Node.__name__),
+                    ('{dst_kind}', model.Prefix.__name__),
+                    ('{i_kind}', '%s|%s' % (model.IntraLink.__name__, model.InterIngress.__name__)),
+                    ('{e_kind}', model.InterEgress.__name__),
+                    ('{b_kind}', model.Router.__name__),
+                    ('{n_kind}', model.Neighbor.__name__),
+                    ('{r_kind}', model.Route.__name__),]:
+                    qry = qry.replace(name, kind)
+            qry = qry.replace('{where}', filter_str)
+            qry = qry.replace('{sort}', sort_str)
             group_by = '{%s}' % ', '.join(group_by)
-            route = '{%s}' % '{src}:{n_name}, {dst}:{dst}, {name}:{r_name}'.format(
-                            src=model.Route.src._name,
-                            dst=model.Route.dst._name, n_name='n',
-                            r_name=model.Route.__name__, name=model.Route.__name__)
-            qry = qry.format(src=src, src_kind=src_kind, dst=dst, dst_kind=dst_kind,
-                             i_kind=intra.__name__, b_kind=model.Router.__name__,
-                             e_kind=inter.__name__,
-                             n_name=model.Route.src._name, n_kind=model.Neighbor.__name__,
-                             r_name=self.kind.route._name, r_kind=model.Route.__name__,
-                             name=self.kind.__name__, maxlen=1, where=filter_str,
-                             group_by=group_by, sort=sort_str)
+            qry = qry.replace('{group_by}', '')
+            qry = qry.replace('{name}', model.Path.__name__)
+            qry = qry.replace('{maxlen}', str(1))
+        else:
+            raise TypeError('unkown query')
         if limit and qry:
             qry += ' LIMIT %d' % limit
         return qry
