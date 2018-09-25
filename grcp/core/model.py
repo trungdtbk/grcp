@@ -432,7 +432,7 @@ class Provider(Neighbor):
     pass
 
 
-class Prefix(Node):
+class Prefix(Model):
     """Represent a destination prefix."""
     prefix = PrefixProperty(name='prefix', required=True)
 
