@@ -156,7 +156,7 @@ class Query(object):
                   '(b)-[InterEgress:{e_kind}]->(neigh:{n_kind})-[Route:{r_kind}]->(dst) '\
                   'WITH src, dst, neigh, InterEgress, Route, NODES(p) AS np, RELS(p) AS lp '\
                   'UNWIND CASE WHEN lp = [] THEN [null] ELSE FILTER(x IN lp WHERE type(x)="IntraLink") END AS IntraLink '\
-                  'WITH {src:src.uid, dst:dst.uid, nodes:[x in np|x.uid]+[neigh.uid, dst.uid], '\
+                  'WITH {src_uid:src.uid, dst_uid:dst.uid, nodes:[x in np|x.uid]+[neigh.uid, dst.uid], '\
                   'links:[x in lp|x.uid]+[InterEgress.uid,Route.uid], '\
                   '{inter}, {intra}, {route}} AS {name} {where} {group_by} '\
                   'RETURN {name} {sort}'
