@@ -273,6 +273,17 @@ class Model(object):
                 if isinstance(prop, Property)])
         return properties
 
+    def put(self):
+        """Save to the database."""
+        uid = None
+        properties = self._get_values(self._properties)
+        properties['uid'] = self._uid
+        labels = self._class_names()
+        record = self._gdb.create_node(labels=labels, properties=properties)
+        if record:
+            return self.entity_to_model(record)
+        return None
+
     def __init__(self, *args, **kwargs):
         self._values = {}
         self._properties = {}
@@ -370,21 +381,6 @@ class Node(Model):
     name = StringProperty(name='name')
     location = StringProperty(name='location')
 
-    @classmethod
-    def create_indices(cls):
-        cls._gdb.create_index(cls.__name__, 'uid')
-
-    def put(self):
-        """Save to the database."""
-        uid = None
-        properties = self._get_values(self._properties)
-        properties['uid'] = self._uid
-        labels = self._class_names()
-        record = self._gdb.create_node(labels=labels, properties=properties)
-        if record:
-            return self.entity_to_model(record)
-        return None
-
     def count_edges(self):
         src = {'label': self.__class__.__name__, 'uid': self._uid}
         return self._gdb.count_outgoing_edges(src=src)
@@ -404,7 +400,8 @@ class Router(Node):
     @classmethod
     def create_constraints(cls):
         cls._gdb.create_constraint(cls.__name__, cls.router_id._name)
-        cls._gdb.create_constraint(cls.__name__, cls.router_ip._name)
+        cls._gdb.create_index(cls.__name__, 'router_id')
+        cls._gdb.create_index(cls.__name__, 'uid')
 
 
 class Neighbor(Node):
@@ -419,6 +416,8 @@ class Neighbor(Node):
     @classmethod
     def create_constraints(cls):
         cls._gdb.create_constraint(cls.__name__, cls.peer_ip._name)
+        cls._gdb.create_index(cls.__name__, 'peer_ip')
+        cls._gdb.create_index(cls.__name__, 'uid')
 
 
 class Customer(Neighbor):
@@ -443,6 +442,8 @@ class Prefix(Model):
     @classmethod
     def create_constraints(cls):
         cls._gdb.create_constraint(cls.__name__, cls.prefix._name)
+        cls._gdb.create_index(cls.__name__, 'uid')
+        cls._gdb.create_index(cls.__name__, 'prefix')
 
 
 class Edge(Model):
