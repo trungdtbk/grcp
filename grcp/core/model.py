@@ -370,6 +370,10 @@ class Node(Model):
     name = StringProperty(name='name')
     location = StringProperty(name='location')
 
+    @classmethod
+    def create_indices(cls):
+        cls._gdb.create_index(cls.__name__, 'uid')
+
     def put(self):
         """Save to the database."""
         uid = None

@@ -82,6 +82,10 @@ class Neo4J(GraphDB):
         qry = 'CREATE CONSTRAINT ON (n:%s) ASSERT n.%s IS UNIQUE' % (kind, prop)
         self.exec_query(qry)
 
+    def create_index(self, kind, prop):
+        qry = 'CREATE INDEX ON :%s(%s)' % (kind, prop)
+        self.exec_query(qry)
+
     def clear_db(self):
         """Clear everything from the database."""
         self.delete_node()
