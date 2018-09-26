@@ -150,5 +150,6 @@ class ModelTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+    stop_neo4j()
 
 
