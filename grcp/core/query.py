@@ -138,7 +138,7 @@ class Query(object):
         else:
             sort_str = ''
         qry = ''
-        if issubclass(self.kind, model.Node):
+        if issubclass(self.kind, model.Node) or issubclass(self.kind, model.Prefix):
             qry = 'MATCH ({name}:{kind}) {where} RETURN {name} {sort}'
             qry = qry.format(name=kind, kind=kind, where=filter_str, sort=sort_str)
         elif issubclass(self.kind, model.Edge):

@@ -352,7 +352,7 @@ class Model(object):
     @classmethod
     def neo4j_to_model(cls, record):
         """Generate a model instance from a Cypher record."""
-        if record and issubclass(cls, Node):
+        if record and issubclass(cls, Node) or issubclass(cls, Prefix):
             entity = record[cls.__name__]
             return cls.entity_to_model(entity)
         return None
@@ -400,7 +400,6 @@ class Router(Node):
     @classmethod
     def create_constraints(cls):
         cls._gdb.create_constraint(cls.__name__, cls.router_id._name)
-        cls._gdb.create_index(cls.__name__, 'router_id')
         cls._gdb.create_index(cls.__name__, 'uid')
 
 
@@ -416,7 +415,6 @@ class Neighbor(Node):
     @classmethod
     def create_constraints(cls):
         cls._gdb.create_constraint(cls.__name__, cls.peer_ip._name)
-        cls._gdb.create_index(cls.__name__, 'peer_ip')
         cls._gdb.create_index(cls.__name__, 'uid')
 
 
@@ -443,7 +441,6 @@ class Prefix(Model):
     def create_constraints(cls):
         cls._gdb.create_constraint(cls.__name__, cls.prefix._name)
         cls._gdb.create_index(cls.__name__, 'uid')
-        cls._gdb.create_index(cls.__name__, 'prefix')
 
 
 class Edge(Model):
@@ -458,7 +455,7 @@ class Edge(Model):
             properties['uid'] = self._uid
         src = { 'uid': self.src._uid }
         dst = self.dst._get_values(self.dst._properties)
-        if self.dst._uid:
+        if self.dst._uid > 0:
             dst['uid'] = self.dst._uid
         dst['labels'] = self.dst._class_names()
         label = self.__class__.__name__
