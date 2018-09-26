@@ -90,7 +90,7 @@ class ModelTest(unittest.TestCase):
 
     def test_path_query(self):
         first = None
-        d = self.put_and_test(model.Prefix(name='prefix1', prefix='1.0.0.0/24'))
+        d = self.put_and_test(model.Prefix(prefix='1.0.0.0/24'))
         as_path = []
         routers = []
         for i in range(3):
