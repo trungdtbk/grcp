@@ -13,6 +13,7 @@ from grcp.utils import get_logger
 logger = get_logger('grcp', loglevel='info')
 
 def main():
+    logger.info('starting the controller')
     CONF(sys.argv[1:])
     app_list = ['grcp.core.topology']
     app_list = app_list + CONF.app_list + CONF.app
