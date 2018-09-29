@@ -115,19 +115,23 @@ class PropertyOrder(Node):
 class Query(object):
     """ For query expression """
 
-    def __init__(self, gdb, kind=None, filters=None, orders=None, group_by=None):
+    def __init__(self,
+            gdb, kind=None, filters=None, orders=None, group_by=None, early_filter=None):
         """A Query
         Args:
             - mode (str): either 'node' or 'link'
             - kind (str): model kind
             - filter (list): list of FilterNode
             - orders (list): list of Properties
+            - optimize (dict): use to set early WHERE to narrow down the search scope
+        optimize = {'key': value}
         """
         self.gdb = gdb
         self.kind = kind
         self.filters = filters
         self.orders = orders
         self.group_by = group_by
+        self.early_filter = early_filter
 
     def _to_cypher(self, limit=None, count=False):
         kind = self.kind.__name__
@@ -138,28 +142,22 @@ class Query(object):
         else:
             sort_str = ''
         qry = ''
-        if issubclass(self.kind, model.Node) or issubclass(self.kind, model.Prefix):
-            qry = 'MATCH ({name}:{kind}) {where} RETURN {name} {sort}'
-            qry = qry.format(name=kind, kind=kind, where=filter_str, sort=sort_str)
-        elif issubclass(self.kind, model.Edge):
-            qry = 'MATCH ({src}: {src_kind})-[{name}:{link_kind}]->({dst}: {dst_kind}) '\
-                  '{where} RETURN {src}, {dst}, {name} {sort}'
-            src = self.kind.src._name
-            dst = self.kind.dst._name
-            src_kind = self.kind.src._modelclass.__name__
-            dst_kind = self.kind.dst._modelclass.__name__
-            qry = qry.format(src=src, src_kind=src_kind, dst_kind=dst_kind, dst=dst,
-                             name=kind, link_kind=kind, where=filter_str, sort=sort_str)
-        elif self.kind == model.Path:
+        if self.kind == model.Path:
             qry = 'MATCH (src:{src_kind}), (dst:{dst_kind}), '\
-                   'p=shortestpath((src)-[:{i_kind}*0..{maxlen}]->(b:{b_kind})), '\
+                  'p=shortestpath((src)-[:{i_kind}*0..{maxlen}]->(b:{b_kind})), '\
                   '(b)-[InterEgress:{e_kind}]->(neigh:{n_kind})-[Route:{r_kind}]->(dst) '\
+                  'WHERE InterEgress.state="up" {early_filter} '\
                   'WITH src, dst, neigh, InterEgress, Route, NODES(p) AS np, RELS(p) AS lp '\
-                  'UNWIND CASE WHEN lp = [] THEN [null] ELSE FILTER(x IN lp WHERE type(x)="IntraLink") END AS IntraLink '\
+                  'UNWIND CASE WHEN lp = [] THEN [null] ELSE FILTER(x IN lp '\
+                  'WHERE type(x)="IntraLink" AND (x.state="up" OR x.state=NULL)) END AS IntraLink '\
                   'WITH {src_uid:src.uid, dst_uid:dst.uid, nodes:[x in np|x.uid]+[neigh.uid, dst.uid], '\
                   'links:[x in lp|x.uid]+[InterEgress.uid,Route.uid], '\
                   '{inter}, {intra}, {route}} AS {name} {where} {group_by} '\
                   'RETURN {name} {sort}'
+            early_filter = ''
+            if self.early_filter:
+                early_filter = 'AND ' + self.early_filter
+            qry = qry.replace('{early_filter}', early_filter)
             group_by = []
             #for name, prop in intra._properties().items():
             for name, prop in model.Path._properties().items():
@@ -205,6 +203,21 @@ class Query(object):
             qry = qry.replace('{group_by}', '')
             qry = qry.replace('{name}', model.Path.__name__)
             qry = qry.replace('{maxlen}', str(1))
+        elif issubclass(self.kind, model.Node) or self.kind == model.Prefix:
+            if filter_str and self.early_filter:
+                filter_str += ' AND ' + self.early_filter
+            elif self.early_filter:
+                filter_str = 'WHERE ' + self.early_filter
+            qry = 'MATCH ({name}:{kind}) {where} RETURN {name} {sort}'
+            qry = qry.format(name=kind, kind=kind, where=filter_str, sort=sort_str)
+        elif issubclass(self.kind, model.Edge):
+            if filter_str and self.early_filter:
+                filter_str += ' AND ' + self.early_filter
+            elif self.early_filter:
+                filter_str = 'WHERE ' + self.early_filter
+            qry = 'MATCH (src)-[{name}:{link_kind}]->(dst) '\
+                  '{where} RETURN src.uid AS src, dst.uid AS dst, {name} {sort}'
+            qry = qry.format(name=kind, link_kind=kind, where=filter_str, sort=sort_str)
         else:
             raise TypeError('unkown query')
         if limit and qry:

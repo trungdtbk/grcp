@@ -26,7 +26,7 @@ class Property(object):
     _verbose_name = None
 
     def __init__(self, name=None, indexed=None, required=None,
-                 default=None, verbose_name=None, ):
+                 default=None, verbose_name=None):
         if name is not None:
             self._name = name
         if indexed is not None:
@@ -273,17 +273,6 @@ class Model(object):
                 if isinstance(prop, Property)])
         return properties
 
-    def put(self):
-        """Save to the database."""
-        uid = None
-        properties = self._get_values(self._properties)
-        properties['uid'] = self._uid
-        labels = self._class_names()
-        record = self._gdb.create_node(labels=labels, properties=properties)
-        if record:
-            return self.entity_to_model(record)
-        return None
-
     def __init__(self, *args, **kwargs):
         self._values = {}
         self._properties = {}
@@ -307,13 +296,64 @@ class Model(object):
     @classmethod
     def query(cls, *args, **kwargs):
         """Construct a Query instance for this model which can be used to fetch data from the db."""
+        early_filter = None
+        if 'uid' in kwargs:
+            early_filter = cls.dict_to_cypher(cls.__name__, {'uid': kwargs.pop('uid')})
         if 'kind' in kwargs:
             kind = kwargs.pop('kind')
         else:
             kind = cls
-        qry = query.Query(cls._gdb, kind=kind, **kwargs)
-        qry = qry.filter(*args)
-        return qry
+        qry = query.Query(cls._gdb, kind=kind, early_filter=early_filter, **kwargs)
+        return qry.filter(*args)
+
+    def count_edges(self):
+        src = {'label': self.__class__.__name__, 'uid': self._uid}
+        return self._gdb.count_outgoing_edges(src=src)
+
+    def _class_names(self):
+        """return all class names in the hierarchy (not 'object' and 'Model') to be used for Node labels."""
+        cls = self.__class__
+        return [str(cls_.__name__) for cls_ in inspect.getmro(cls)
+                if cls_ not in [object, type, Model]]
+
+    def put(self):
+        """Save to the database."""
+        uid = None
+        properties = self._get_values(self._properties)
+        properties['uid'] = self._uid
+        labels = self._class_names()
+        record = self._gdb.create_node(labels=labels, properties=properties)
+        if record:
+            return self.entity_to_model(record)
+        return None
+
+    def delete(self):
+        properties = {'uid': self._uid}
+        self._gdb.delete_node(self._class_name(), properties)
+
+    @classmethod
+    def neo4j_to_model(cls, record):
+        """Generate a model instance from a Cypher record."""
+        if record and issubclass(cls, Node) or cls==Prefix:
+            entity = record[cls.__name__]
+            return cls.entity_to_model(entity)
+        return None
+
+    @classmethod
+    def dict_to_cypher(cls, name, d):
+        """ turn this dict d into a cypher string. name is variable used in cypher query
+        """
+        filters = []
+        for k, v in d.items():
+            if k == 'uid':
+                k = 'id(%s)' % name
+            else:
+                k = '%s.%s' % (name, k)
+            if type(v) == str:
+                filters.append('%s="%s"' % (k, v))
+            else:
+                filters.append('%s=%s' % (k, v))
+        return ' AND '.join(filters)
 
     def _get_values(self, properties):
         values = {}
@@ -350,25 +390,11 @@ class Model(object):
         return entity
 
     @classmethod
-    def neo4j_to_model(cls, record):
-        """Generate a model instance from a Cypher record."""
-        if record and issubclass(cls, Node) or issubclass(cls, Prefix):
-            entity = record[cls.__name__]
-            return cls.entity_to_model(entity)
-        return None
-
-    @classmethod
     def clear_db(cls):
         cls._gdb.clear_db()
 
     def _class_name(self):
         return self.__class__.__name__
-
-    def _class_names(self):
-        """return all class names in the hierarchy (not 'object' and 'Model') to be used for Node labels."""
-        cls = self.__class__
-        return [str(cls_.__name__) for cls_ in inspect.getmro(cls)
-                if cls_ != object and cls_ != type and cls_ != Model]
 
     def __repr__(self):
         return '<%s %s>' % (
@@ -380,14 +406,6 @@ class Node(Model):
     """Represent a node in graph."""
     name = StringProperty(name='name')
     location = StringProperty(name='location')
-
-    def count_edges(self):
-        src = {'label': self.__class__.__name__, 'uid': self._uid}
-        return self._gdb.count_outgoing_edges(src=src)
-
-    def delete(self):
-        properties = {'uid': self._uid}
-        self._gdb.delete_node([self._class_name()], properties)
 
 
 class Router(Node):
@@ -446,44 +464,59 @@ class Prefix(Model):
 class Edge(Model):
     """Represent an edge in graph. Exist mainly to check type."""
     name = StringProperty(name='name')
+    src = IntegerProperty('src', verbose_name='uid of src node', required=True)
+    dst = IntegerProperty('dst', verbose_name='uid of dst node', required=True)
 
-    def put(self, create_dst=False):
+    def put(self):
         """Save to the database."""
-        uid = None
         properties = self._get_values(self._properties)
-        if self._uid:
+        if self._uid > 0:
             properties['uid'] = self._uid
-        src = { 'uid': self.src._uid }
-        dst = self.dst._get_values(self.dst._properties)
-        if self.dst._uid > 0:
-            dst['uid'] = self.dst._uid
-        dst['labels'] = self.dst._class_names()
+        src = { 'uid': properties.pop('src') }
+        dst = { 'uid': properties.pop('dst') }
         label = self.__class__.__name__
-        return self._gdb.create_link(label=label, src=src, dst=dst,
-                                    properties=properties, create_dst=create_dst)
+        record = self._gdb.create_link(label=label, src=src, dst=dst,
+                                       properties=properties)
+        if record:
+            return self.neo4j_to_model(record)
 
     def delete(self):
-        properties = {'uid': self._uid}
         cls = self.__class__
-        src = self.src._get_values(self.src._properties)
-        dst = self.dst._get_values(self.dst._properties)
+        properties = self._get_values(self._properties)
+        src = { 'uid': properties.pop('src') }
+        dst = { 'uid': properties.pop('dst') }
         label = cls.__name__
-        return self._gdb.delete_link(name=label, label=label, src=src, dst=dst)
+        for record in self._gdb.delete_link(label=label, src=src, dst=dst):
+            yield self.neo4j_to_model(record)
 
     @classmethod
     def neo4j_to_model(cls, record):
         if record and issubclass(cls, Edge):
             entity = record[cls.__name__]
-            new = cls.entity_to_model(entity)
-            new.src = Model.entity_to_model(record[cls.src._name])
-            new.dst = Model.entity_to_model(record[cls.dst._name])
+            modelclass = _all_models[entity.type]
+            new = modelclass.entity_to_model(entity)
+            new.src = record['src']
+            new.dst = record['dst']
             return new
 
+    @classmethod
+    def query(cls, *args, **kwargs):
+        early_filter = ''
+        if 'src' in kwargs:
+            early_filter = cls.dict_to_cypher('src', kwargs.pop('src'))
+        if 'dst' in kwargs:
+            if early_filter:
+                early_filter += ' AND '
+            early_filter += cls.dict_to_cypher('dst', kwargs.pop('dst'))
+        if 'kind' in kwargs:
+            kind = kwargs.pop('kind')
+        else:
+            kind = cls
+        qry = query.Query(cls._gdb, kind=kind, early_filter=early_filter, **kwargs)
+        return qry.filter(*args)
 
 class Route(Edge):
     """Represent a route."""
-    src = StructuredProperty(Neighbor, 'peer')
-    dst = StructuredProperty(Prefix, name='prefix')
     local_pref = IntegerProperty('local_pref')
     aspath_len = IntegerProperty(name='aspath_len')
     as_path = ListProperty('as_path')
@@ -491,6 +524,8 @@ class Route(Edge):
     med = IntegerProperty('med')
     communities = StringProperty('communities')
     origin_as = IntegerProperty('origin_as')
+    prefix = StringProperty('prefix')
+    nexthop = StringProperty('nexthop')
 
 
 class Link(Edge):
@@ -499,17 +534,14 @@ class Link(Edge):
     delay = LatencyProperty('delay')
     bandwidth = BandwidthProperty('bandwidth')
     utilization = FloatProperty('utilization')
+    state = StringProperty('state')
 
 
 class IntraLink(Link):
-    src = StructuredProperty(Router, 'src')
-    dst = StructuredProperty(Router, 'dst')
     weight = FloatProperty('weight')
 
 
 class InterLink(Link):
-    src = StructuredProperty(Router, 'src')
-    dst = StructuredProperty(Neighbor, 'dst')
     cost = CostProperty('cost', verbose_name='transit cost')
 
 
@@ -525,8 +557,6 @@ class InterEgress(InterLink):
 
 class Mapping(Edge):
     """Represent a RIB/FIB entry of a node. A mapping links a node to a prefix"""
-    src = IntegerProperty(name='src_uid')
-    dst = IntegerProperty(name='dst_uid')
     nodes = ListProperty(name='nodes')
     links = ListProperty(name='links')
 
@@ -572,8 +602,8 @@ class PathProperty(type):
             return prop
 
 
-class Path(Model, metaclass=PathProperty):
-
+class Path(Edge, metaclass=PathProperty):
+    """ Exist for queyring only."""
     def put(self):
         raise Exception('method not allowed')
 
@@ -590,6 +620,8 @@ _all_models = {
         'Path': Path,
         'IntraLink': IntraLink,
         'InterLink': InterLink,
+        'InterEgress': InterEgress,
+        'InterIngress': InterIngress,
         'Router': Router,
         'Customer': Customer,
         'Peer': Peer,

@@ -34,6 +34,7 @@ class Neo4J(GraphDB):
 
     from neo4j.v1 import GraphDatabase
     from neo4j.v1.types.graph import Node, Relationship
+    from neo4j.exceptions import ConstraintError
 
     def __init__(self, db_uri=None, db_user=None, db_pass=None):
         uri = db_uri or DEFAULT_DB_URI
@@ -73,8 +74,14 @@ class Neo4J(GraphDB):
         """
         if not query:
             return []
-        with self.driver.session() as session:
-            return session.run(query, params)
+        #print(query, params)
+        try:
+            with self.driver.session() as session:
+                return session.run(query, params)
+        except self.ConstraintError:
+            pass
+        except Exception as e:
+            raise e
         return []
 
     def create_constraint(self, kind, prop):
@@ -143,49 +150,52 @@ class Neo4J(GraphDB):
             return records[0]['cnt']
         return None
 
-    def create_link(self, label, src, dst, properties={}, create_dst=False):
+    def create_link(self, label, src, dst, properties={}):
         """create a link between a src Node and a dst Node. src node must exist.
         Argument create_dst can be used to turn on/off dst node condition.
         Args:
             src (dict): properties of src Node.
             dst (dict): properties of dst Node.
         """
-        src_str = self._dict_to_cypher(src)
-        dst_kind = dst.pop('label', '')
-        dst_kinds = dst.pop('labels', [])
-        dst_str = self._dict_to_cypher(dst)
-        if create_dst:
-            dst_kind = ': '.join(dst_kinds)
-            if dst_kind:
-                dst_kind = ':%s' % dst_kind
-            qry = 'MATCH ( peer {src} ) '\
-                  'MERGE (peer)-[link:{label}]->(prefix {dst_kind} {dst}) '\
-                  'ON MATCH SET link = $properties, link.uid = id(link) '\
-                  'ON CREATE SET link=$properties, link.uid=id(link), prefix.uid=id(prefix) '\
-                  'RETURN link.uid AS uid'
-        else:
-            if dst_kind:
-                dst_kind = ':%s' % dst_kind
-            qry = 'MATCH ( peer {src} ), ( prefix {dst_kind} {dst} ) '\
-                  'MERGE (peer)-[link:{label}]->(prefix) '\
-                  'SET link= $properties, link.uid = id(link) RETURN link.uid AS uid'
+        assert 'uid' in src
+        assert 'uid' in dst
+        where_str = []
+        for s, d in (('src', src), ('dst', dst)):
+            where_str.append('id(%s)=%s' % (s, d.pop('uid')))
+        where_str = ' AND '.join(where_str)
+        qry = 'MATCH ( src ), ( dst ) '\
+              'WHERE {where} '\
+              'MERGE ( src )-[{label}:{label}]->( dst ) '\
+              'SET {label}= $properties, {label}.uid = id({label}) '\
+              'RETURN src.uid AS src, dst.uid AS dst, {label}'
         records = list(self.exec_query(
                 qry.format(
-                    src=src_str, dst=dst_str, label=label, dst_kind=dst_kind),
+                    label=label, where=where_str),
                 properties=properties))
         if records:
-            return records[0]['uid']
+            return records[0]
         return None
 
-    def delete_link(self, label, src, dst):
+    def delete_link(self, lid=None, label=None, src={}, dst={}):
         """Delete a link between a src Node and a dst Node. src and dst are dict that
         describe the Node (property name and value to filter nodes). label is the link type."""
-        src_str = self._dict_to_cypher(src)
-        dst_str = self._dict_to_cypher(dst)
-        qry = 'MATCH (src {src}) -[link:{label}]->(dst {dst}) '\
-              'DELETE link RETURN link.uid'
-        records = list(self.exec_query(qry.format(label=label, src=src_str, dst=dst_str)))
-        return records
+        where_str = []
+        for s, d in (('src', src), ('dst', dst)):
+            if 'uid' in d:
+                where_str.append('id(%s)=%s' % (s, d.pop('uid')))
+        if lid:
+            where_str.append('id(link)=%s' % lid)
+        where_str = ' AND '.join(where_str)
+        if where_str:
+            where_str = 'WHERE ' + where_str
+        if label is None:
+            label = ''
+        else:
+            label = ':' + label
+        qry = 'MATCH (src) -[{label}:{label}]->(dst) '\
+              '{where} DELETE {label} RETURN src.uid AS src, dst.uid AS dst, {label}'
+        qry = qry.format(label=label, src=src_str, dst=dst_str, where=where_str)
+        return self.exec_query(qry)
 
 
 class RedisGraph(Neo4J):
