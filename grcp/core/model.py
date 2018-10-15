@@ -259,7 +259,7 @@ class IPAddressProperty(Property):
     def _validate(cls, value):
         try:
             address = ipaddress.ip_address(value)
-            return int(address)
+            return str(address)
         except:
             raise TypeError('Wrong data type/format provided: %r' % value)
 
@@ -499,7 +499,6 @@ class BorderRouter(Router):
 
     @classmethod
     def get_or_create(cls, router_id, name, state):
-        router_id = cls.router_id._validate(router_id)
         return super(BorderRouter, cls).get_or_create(
                                         match_dict={'router_id': router_id},
                                         properties={
@@ -523,8 +522,6 @@ class PeerRouter(Router):
 
     @classmethod
     def get_or_create(cls, peer_ip, peer_as, local_ip, local_as, state):
-        peer_ip = cls.peer_ip._validate(peer_ip)
-        local_ip = cls.local_ip._validate(local_ip)
         properties = dict(
                 peer_ip=peer_ip,
                 peer_as=peer_as,
