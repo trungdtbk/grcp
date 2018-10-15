@@ -169,7 +169,7 @@ class Query(object):
                   '{inter}, {intra}, {route}, neighbor: neigh.peer_ip, ingress: i.router_id, '\
                   'egress: b.router_id, pathid: InterEgress.pathid, nexthop: Route.nexthop } AS {name} {where} {group_by} '\
                   'RETURN {name} {sort}'
-            early_filter = 'src.peer_ip <> neigh.peer_ip'
+            early_filter = '( (neigh.peer_ip <> src.peer_ip AND EXISTS(src.peer_ip)) OR NOT EXISTS(src.peer_ip) )'
             if self.early_filter:
                 early_filter = self.early_filter + ' AND ' + early_filter
             qry = qry.replace('{early_filter}', early_filter)
