@@ -62,6 +62,7 @@ class AppBase(object):
             for ev_cls in app.handlers.keys():
                 self.observers.setdefault(ev_cls, set())
                 self.observers[ev_cls].add(app)
+                logger.info('registered observer %s for event %s' % (app.name, ev_cls.__name__))
 
     def _get_handlers(self, event):
         name = event.__class__
@@ -76,8 +77,8 @@ class AppBase(object):
                 handlers = self._get_handlers(event)
                 for handler in handlers:
                     handler(event)
-            except:
-                return
+            except Exception as e:
+                raise Exception(e)
 
     def _get_observers(self, ev):
         if ev.__class__ in self.observers:

@@ -41,7 +41,7 @@ class Neo4J(GraphDB):
         username = db_user or DEFAULT_DB_USER
         password = db_pass or DEFAULT_DB_PASS
         self.driver = None
-        for _ in range(120):
+        for _ in range(60):
             try:
                 self.driver = self.GraphDatabase.driver(uri, auth=(username, password))
             except:
@@ -54,6 +54,8 @@ class Neo4J(GraphDB):
         """convert a dict into cypher-compliant string.
         Ex: {"label": "A", "cost": 2, "name": "R1"} -> '{:A {cost: 2, name:"R"}'
         """
+        if d is None:
+            return ''
         kind = d.pop('label', None)
         s = ''
         for k, v in d.items():
@@ -74,7 +76,7 @@ class Neo4J(GraphDB):
         """
         if not query:
             return []
-        #print(query, params)
+        print(query)
         try:
             with self.driver.session() as session:
                 return session.run(query, params)
@@ -97,7 +99,7 @@ class Neo4J(GraphDB):
         """Clear everything from the database."""
         self.delete_node()
 
-    def delete_node(self, label=None, filters=None):
+    def delete_node(self, kind=None, filter_str=''):
         """Delete a node from the database. Leave out labels and filters to delete everything
         labels (list) to define kinds of the node
         filters (dict) a set of property names and values to match on.
@@ -105,18 +107,16 @@ class Neo4J(GraphDB):
         delete_node('Peer', {'name': 'R'}) to delete all Peer nodes with name = R
         delete_node(filters={'name': 'R'}) to delete all nodes with name = R
         """
-        qry = ''
-        kind = label or ''
-        filter_str = ''
-        if kind:
-            kind = ':' + kind
-        if filters:
-            filter_str = self._dict_to_cypher(filters)
-        qry = 'MATCH ( n {kind} {filter_str} ) DETACH DELETE n RETURN n;'
-        records = self.exec_query(qry.format(kind=kind, filter_str=filter_str))
-        return records
+        label = ':' + kind if kind else ''
+        if filter_str:
+            filter_str = 'WHERE ' + filter_str
+        qry = 'MATCH ( node {label} ) {filter_str} DETACH DELETE node RETURN count(node) AS count;'
+        records = list(self.exec_query(qry.format(label=label, filter_str=filter_str)))
+        if records:
+            return records[0]['count']
+        return None
 
-    def create_node(self, labels, properties={}):
+    def create_node(self, match_dict, labels, properties={}):
         """Create a new node with labels as node kind and properties. If a 'uid' in
         the properties dict and a node with the same uid exist, it will be updated with
         the new properties.
@@ -125,13 +125,31 @@ class Neo4J(GraphDB):
             kind = ":".join(labels)
         else:
             kind = ':' % labels
-        uid = self._dict_to_cypher({'uid': properties.pop('uid', -1)})
-        qry = 'MERGE ( node:{kind} {uid} ) '\
+        match = self._dict_to_cypher(match_dict)
+        qry = 'MERGE ( node:{kind} {match} ) '\
               'ON MATCH SET node=$properties, node.uid=id(node) '\
               'ON CREATE SET node=$properties, node.uid=id(node) '\
               'RETURN node'
-        records = list(self.exec_query(
-                        qry.format(kind=kind, uid=uid), properties=properties))
+        qry = qry.format(kind=kind, match=match)
+        records = list(self.exec_query(qry, properties=properties))
+        if records:
+            return records[0]['node']
+        return None
+
+    def update_node(self, match_dict, kind, properties={}):
+        set_str = []
+        for key, value in properties.items():
+            if type(value) == str:
+                set_str.append('node.%s="%s"' % (key, value))
+            else:
+                set_str.append('node.%s=%s' % (key, value))
+        set_str = ', '.join(set_str)
+        match = self._dict_to_cypher(match_dict)
+        qry = 'MATCH ( node:{kind} {match} ) '\
+              'SET {set_str} '\
+              'RETURN node'
+        qry = qry.format(kind=kind, match=match, set_str=set_str)
+        records = list(self.exec_query(qry))
         if records:
             return records[0]['node']
         return None
@@ -150,28 +168,50 @@ class Neo4J(GraphDB):
             return records[0]['cnt']
         return None
 
-    def create_link(self, label, src, dst, properties={}):
+    def create_link(self, kind, src, dst, properties={}, create_dst=False):
         """create a link between a src Node and a dst Node. src node must exist.
         Argument create_dst can be used to turn on/off dst node condition.
         Args:
             src (dict): properties of src Node.
             dst (dict): properties of dst Node.
         """
-        assert 'uid' in src
-        assert 'uid' in dst
-        where_str = []
-        for s, d in (('src', src), ('dst', dst)):
-            where_str.append('id(%s)=%s' % (s, d.pop('uid')))
-        where_str = ' AND '.join(where_str)
-        qry = 'MATCH ( src ), ( dst ) '\
-              'WHERE {where} '\
-              'MERGE ( src )-[{label}:{label}]->( dst ) '\
-              'SET {label}= $properties, {label}.uid = id({label}) '\
-              'RETURN src.uid AS src, dst.uid AS dst, {label}'
-        records = list(self.exec_query(
-                qry.format(
-                    label=label, where=where_str),
-                properties=properties))
+        src_match = self._dict_to_cypher(src)
+        dst_match = self._dict_to_cypher(dst)
+        set_str = []
+        for key, value in properties.items():
+            if type(value) == str:
+                set_str.append('%s.%s="%s"' % (kind, key, value))
+            else:
+                set_str.append('%s.%s=%s' % (kind, key, value))
+        set_str = ', '.join(set_str)
+        if create_dst:
+            set_str = set_str + ',' if set_str else set_str
+            qry = 'MATCH ( src {src_match} ) '\
+                  'MERGE ( src )-[{name}:{kind}]->( dst {dst_match} ) '\
+                  'SET {set_str} '\
+                  '(CASE {name}.uid WHEN NULL THEN {name} END).uid=id({name}), '\
+                  '(CASE dst.uid WHEN NULL THEN dst END).uid=id(dst) '\
+                  'RETURN src.uid AS src, dst.uid AS dst, {name}'
+        else:
+            qry = 'MATCH ( src {src_match} ), (dst {dst_match} ) '\
+                  'MERGE ( src )-[{name}:{kind}]->( dst ) '\
+                  'SET {set_str} '\
+                  'RETURN src.uid AS src, dst.uid AS dst, {name}'
+        qry = qry.format(src_match=src_match, dst_match=dst_match, name=kind, kind=kind, set_str=set_str)
+        records = list(self.exec_query(qry))
+        if records:
+            return records[0]
+        return None
+
+    def update_link(self, name, linkid, kind=None, properties={}):
+        kind = kind or ''
+        if kind:
+            kind = ':' + kind
+        qry = 'MATCH ( src )-[{name} {kind}]->( dst) '\
+              'WHERE id({name})=$linkid '\
+              'SET {name}=$properties, {name}.uid=id({name}) '\
+              'RETURN src.uid AS src, dst.uid AS dst, {name}'
+        records = list(self.exec_query(qry.format(name=name, kind=kind), linkid=linkid, properties=properties))
         if records:
             return records[0]
         return None
@@ -184,7 +224,7 @@ class Neo4J(GraphDB):
             if 'uid' in d:
                 where_str.append('id(%s)=%s' % (s, d.pop('uid')))
         if lid:
-            where_str.append('id(link)=%s' % lid)
+            where_str.append('id(%s)=%s' % (label, lid))
         where_str = ' AND '.join(where_str)
         if where_str:
             where_str = 'WHERE ' + where_str

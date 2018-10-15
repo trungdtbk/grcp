@@ -46,6 +46,10 @@ class FilterNode(Node):
         return '<%s name=%s op=%s value=%s>' % (
                 self.__class__.__name__, self._name, self._opsymbol, self._value)
 
+class FilterByID(FilterNode):
+    def to_cypher(self):
+        out = 'id({name}) {op} {value}'
+        return out.format(name=self._name, op=self._opsymbol, value=self._value)
 
 class ConjunctionNode(Node):
 
@@ -91,7 +95,14 @@ class FilterInclude(FilterNode):
     def to_cypher(self):
         out = '{value} {op} {name}'
         if isinstance(self._value, str):
-            out = '{value} {op} "{name}"'
+            out = '"{value}" {op} {name}'
+        return out.format(name=self._name, op=self._opsymbol, value=self._value)
+
+class FilterExclude(FilterNode):
+    def to_cypher(self):
+        out = 'NOT {value} {op} {name}'
+        if isinstance(self._value, str):
+            out = 'NOT "{value}" {op} {name}'
         return out.format(name=self._name, op=self._opsymbol, value=self._value)
 
 
@@ -115,8 +126,8 @@ class PropertyOrder(Node):
 class Query(object):
     """ For query expression """
 
-    def __init__(self,
-            gdb, kind=None, filters=None, orders=None, group_by=None, early_filter=None):
+    def __init__(self, gdb, kind=None, filters=None, orders=None, group_by=None,
+                 src_label=None, dst_label=None, early_filter=None):
         """A Query
         Args:
             - mode (str): either 'node' or 'link'
@@ -132,6 +143,8 @@ class Query(object):
         self.orders = orders
         self.group_by = group_by
         self.early_filter = early_filter
+        self.src_label = src_label
+        self.dst_label = dst_label
 
     def _to_cypher(self, limit=None, count=False):
         kind = self.kind.__name__
@@ -143,34 +156,23 @@ class Query(object):
             sort_str = ''
         qry = ''
         if self.kind == model.Path:
-            qry = 'MATCH (src:{src_kind}), (dst:{dst_kind}), '\
-                  'p=shortestpath((src)-[:{i_kind}*0..{maxlen}]->(b:{b_kind})), '\
+            qry = 'MATCH (src:{src_kind}), (dst:{dst_kind}), (src)-[:{u_kind}*0..1]->(i:{b_kind}), '\
+                  'p=shortestpath((i)-[:{i_kind}*0..{maxlen}]->(b:{b_kind})), '\
                   '(b)-[InterEgress:{e_kind}]->(neigh:{n_kind})-[Route:{r_kind}]->(dst) '\
-                  'WHERE InterEgress.state="up" {early_filter} '\
-                  'WITH src, dst, neigh, InterEgress, Route, NODES(p) AS np, RELS(p) AS lp '\
+                  'WHERE {early_filter} AND '\
+                  'InterEgress.state="up" AND src.state="up" AND b.state="up" AND neigh.state="up" AND Route.state="up" '\
+                  'WITH src, dst, neigh, i, b, InterEgress, Route, NODES(p) AS np, RELS(p) AS lp '\
                   'UNWIND CASE WHEN lp = [] THEN [null] ELSE FILTER(x IN lp '\
                   'WHERE type(x)="IntraLink" AND (x.state="up" OR x.state=NULL)) END AS IntraLink '\
-                  'WITH {src_uid:src.uid, dst_uid:dst.uid, nodes:[x in np|x.uid]+[neigh.uid, dst.uid], '\
+                  'WITH {src: src, dst:dst, nodes:[x in np|x.uid]+[neigh.uid, dst.uid], '\
                   'links:[x in lp|x.uid]+[InterEgress.uid,Route.uid], '\
-                  '{inter}, {intra}, {route}} AS {name} {where} {group_by} '\
+                  '{inter}, {intra}, {route}, neighbor: neigh.peer_ip, ingress: i.router_id, '\
+                  'egress: b.router_id, pathid: InterEgress.pathid, nexthop: Route.nexthop } AS {name} {where} {group_by} '\
                   'RETURN {name} {sort}'
-            early_filter = ''
+            early_filter = 'src.peer_ip <> neigh.peer_ip'
             if self.early_filter:
-                early_filter = 'AND ' + self.early_filter
+                early_filter = self.early_filter + ' AND ' + early_filter
             qry = qry.replace('{early_filter}', early_filter)
-            group_by = []
-            #for name, prop in intra._properties().items():
-            for name, prop in model.Path._properties().items():
-                func = ''
-                if isinstance(prop, model.StringProperty):
-                    func = '{name}:collect({prop}.{name})'
-                elif isinstance(prop, model.BandwidthProperty):
-                    func = '{name}:min({prop}.{name})'
-                elif (isinstance(prop, model.LatencyProperty) or
-                        isinstance(prop, model.WeightProperty)):
-                    func = '{name}:sum({prop}.{name})'
-                if func:
-                    group_by.append(func.format(prop=self.kind.__name__, name=name))
             intra_props = []
             inter_props = []
             route_props = []
@@ -189,21 +191,22 @@ class Query(object):
                 qry = qry.replace(rep, prop_str)
 
             for (name, kind) in [
-                    ('{src_kind}', model.Node.__name__),
-                    ('{dst_kind}', model.Prefix.__name__),
-                    ('{i_kind}', '%s|%s' % (model.IntraLink.__name__, model.InterIngress.__name__)),
+                    ('{src_kind}', self.src_label),
+                    ('{dst_kind}', self.dst_label),
+                    ('{u_kind}', model.InterIngress.__name__),
+                    ('{i_kind}', model.IntraLink.__name__),
                     ('{e_kind}', model.InterEgress.__name__),
-                    ('{b_kind}', model.Router.__name__),
-                    ('{n_kind}', model.Neighbor.__name__),
+                    ('{b_kind}', model.BorderRouter.__name__),
+                    ('{n_kind}', model.PeerRouter.__name__),
                     ('{r_kind}', model.Route.__name__),]:
-                    qry = qry.replace(name, kind)
+                kind = kind or ''
+                qry = qry.replace(name, kind)
             qry = qry.replace('{where}', filter_str)
             qry = qry.replace('{sort}', sort_str)
-            group_by = '{%s}' % ', '.join(group_by)
             qry = qry.replace('{group_by}', '')
             qry = qry.replace('{name}', model.Path.__name__)
             qry = qry.replace('{maxlen}', str(1))
-        elif issubclass(self.kind, model.Node) or self.kind == model.Prefix:
+        elif issubclass(self.kind, model.Node):
             if filter_str and self.early_filter:
                 filter_str += ' AND ' + self.early_filter
             elif self.early_filter:
@@ -215,9 +218,17 @@ class Query(object):
                 filter_str += ' AND ' + self.early_filter
             elif self.early_filter:
                 filter_str = 'WHERE ' + self.early_filter
-            qry = 'MATCH (src)-[{name}:{link_kind}]->(dst) '\
+            src_label = ':' + self.src_label if self.src_label else ''
+            dst_label = ':' + self.dst_label if self.dst_label else ''
+            if self.kind == model.Edge or self.kind == model.Link:
+                link_kind = ''
+            else:
+                link_kind = ':' + kind
+            qry = 'MATCH (src {src_label} )-[{name} {link_kind}]->(dst {dst_label} ) '\
                   '{where} RETURN src.uid AS src, dst.uid AS dst, {name} {sort}'
-            qry = qry.format(name=kind, link_kind=kind, where=filter_str, sort=sort_str)
+            qry = qry.format(
+                    name=kind, link_kind=link_kind, where=filter_str, sort=sort_str,
+                    src_label=src_label, dst_label=dst_label)
         else:
             raise TypeError('unkown query')
         if limit and qry:
@@ -242,7 +253,9 @@ class Query(object):
         else:
             pred = ConjunctionNode(*preds)
         return self.__class__(self.gdb, self.kind, filters=pred,
-                              orders=self.orders, group_by=self.group_by)
+                              orders=self.orders, group_by=self.group_by,
+                              src_label=self.src_label, dst_label=self.dst_label,
+                              early_filter=self.early_filter)
 
     def order(self, *nodes):
         if not nodes:

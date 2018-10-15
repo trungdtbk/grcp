@@ -12,8 +12,10 @@ logger = logging.getLogger('grcp.messenger')
 
 
 class RouterControlProtocol(LineReceiver):
-    """A protocol for communication with fBGP.
-    """
+    """A protocol for communication with fBGP."""
+
+    delimiter = b'\n'
+
     def __init__(self, factory):
         self.factory = factory
 
