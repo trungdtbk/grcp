@@ -199,7 +199,8 @@ class TopologyManager(app_manager.AppBase):
             'egress': path_info['egress'],
             'neighbor': path_info['neighbor'],
             'pathid': path_info['pathid'],
-            'nexthop': path_info['nexthop']}
+            'nexthop': path_info['nexthop'],
+            'state': 'up'}
         mapping = model.Mapping.get_or_create(src_id, prefix, path, for_peer)
         return mapping
 
