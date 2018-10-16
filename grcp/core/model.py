@@ -598,7 +598,7 @@ class Edge(Model):
     def update(cls, uid, **attributes):
         record = cls._gdb.update_link(cls.__name__, uid, properties=attributes)
         if record:
-            return neo4j_to_model(record)
+            return cls.neo4j_to_model(record)
         return None
 
     def delete(self):
