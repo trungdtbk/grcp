@@ -674,13 +674,14 @@ class Route(Edge):
 
 
 class Link(Edge):
-    """Represent a link between two Nodes."""
+    """Represent a link between two Nodes. A link is directional."""
     loss = LossProperty('loss', default=0)
     delay = LatencyProperty('delay', default=1)
     bandwidth = BandwidthProperty('bandwidth', default=1)
     utilization = PositiveFloatProperty('utilization', default=0)
-    vlan_vid = IntegerProperty(name='vlan_vid')
     pathid = IntegerProperty(name='pathid')
+    port = StringProperty(name='port')
+    dp = StringProperty(name='dp')
 
     @classmethod
     def get_by_id(cls, uid):
