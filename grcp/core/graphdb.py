@@ -76,7 +76,6 @@ class Neo4J(GraphDB):
         """
         if not query:
             return []
-        print(query)
         try:
             with self.driver.session() as session:
                 return session.run(query, params)
