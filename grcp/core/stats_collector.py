@@ -14,6 +14,7 @@ class PromStatsCollector():
         self.interval = 120 # seconds
 
     def run(self):
+        print('runnning')
         while True:
             self.links_stats_update()
             time.sleep(self.interval)
@@ -33,9 +34,12 @@ class PromStatsCollector():
         speed = self._link_curr_speed(link.dp, link.port)
         if speed:
             rate = self._link_tx_rate(link.dp, link.port)
-            link = model.Link.update(link.uid, bandwidth=speed, utilization=(rate*8/speed)*100)
-            if link and self.handler:
-                self.handler(link)
+            utilization = rate*8*100/speed
+            if speed != link.bandwidth or utilization != link.utilization:
+                link = model.Link.update(link.uid, bandwidth=speed, utilization=utilization)
+                if link and self.handler:
+                    print('link %s has state updated' % link)
+                    self.handler(link)
 
     def _query(self, dp_name, port_name, stat_key, rate=True):
         query = '%s{job="gauge",dp_name="%s",port_name="%s"}' % (stat_key, dp_name, port_name)
@@ -45,7 +49,7 @@ class PromStatsCollector():
         res = requests.get(url)
         if res.status_code == 200:
             result = res.json()
-            if result['status'] == 'success':
+            if result['status'] == 'success' and result['data']['result']:
                 timestamp, value = result['data']['result'][0]['value']
                 try:
                     value = float(value) if '.' in value else int(value)

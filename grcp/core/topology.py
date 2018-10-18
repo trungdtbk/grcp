@@ -6,6 +6,7 @@ from grcp.base import app_manager
 from .controller import RouterController
 from .event import EventBase
 from . import model
+from .stats_collector import PromStatsCollector
 
 logger = logging.getLogger('grcp.topo_manager')
 
@@ -43,11 +44,16 @@ class EventLinkStateChange(EventBase):
     pass
 
 
+class EventLinkStatsChange(EventBase):
+    pass
+
+
 class TopologyManager(app_manager.AppBase):
 
     def __init__(self):
         super(TopologyManager, self).__init__()
         self.name = 'topo_manager'
+        self.stats_collector = PromStatsCollector(handler=self.link_stats_change_handler)
         model.initialize()
         self.clear()
 
@@ -64,7 +70,12 @@ class TopologyManager(app_manager.AppBase):
         super(TopologyManager, self).start()
         self.controller = RouterController(self)
         signal.signal(signal.SIGHUP, self.handle_signal)
+        eventlet.spawn(self.stats_collector.run)
         return eventlet.spawn(self.controller)
+
+    def link_stats_change_handler(self, link):
+        ev = EventLinkStatsChange(link)
+        self.send_event_to_observers(ev)
 
     def send_msg(self, router_id, msg):
         logger.debug('send msg to %s' % router_id)
