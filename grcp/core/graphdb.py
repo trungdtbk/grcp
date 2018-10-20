@@ -120,7 +120,7 @@ class Neo4J(GraphDB):
         """
         kind = ':' + kind if kind else ''
         where_str = self._dict_to_match_str(match)
-        qry = 'MATCH ( node {label} ) {filter_str} DETACH DELETE node RETURN count(node) AS count;'
+        qry = 'MATCH (node {label} {filter_str}) DETACH DELETE node RETURN count(node) AS count;'
         records = list(self.exec_query(qry.format(label=kind, filter_str=where_str)))
         if records:
             return records[0]['count']
@@ -193,15 +193,16 @@ class Neo4J(GraphDB):
             return records[0]
         return None
 
-    def delete_link(self, kind, match, src={}, dst={}):
+    def delete_link(self, kind, match={}, src={}, dst={}):
         """Delete a link between a src Node and a dst Node. src and dst are dict that
         describe the Node (property name and value to filter nodes). label is the link type."""
-        where_str = self._dict_to_match_str(match)
-        if where_str:
-            where_str = 'WHERE ' + where_str
-        qry = 'MATCH (src) -[{name}:{kind}]->(dst) '\
-              '{where} DELETE {name} RETURN src.uid AS src, dst.uid AS dst, {name}'
-        qry = qry.format(name=kind, kind=kind, src=src_str, dst=dst_str, where=where_str)
+        match_str = self._dict_to_match_str(match)
+        src_match = self._dict_to_match_str(src)
+        dst_match = self._dict_to_match_str(dst)
+        qry = 'MATCH (src {src_match} ) -[{name}:{kind} {match}]->(dst {dst_match}) '\
+              'DELETE {name} RETURN src.uid AS src, dst.uid AS dst, {name}'
+        qry = qry.format(
+                name=kind, kind=kind, match=match_str, src_match=src_match, dst_match=dst_match)
         return self.exec_query(qry)
 
 

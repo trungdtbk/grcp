@@ -465,6 +465,10 @@ class Node(Model):
             return self.entity_to_model(record)
         return None
 
+    def delete(self):
+        record = self._gdb.delete_node(kind=self.__class__.__name__, match={'uid': self.uid})
+        return record is not None
+
     @classmethod
     def get_or_create(cls, match_dict, properties={}):
         """Get node based on create if not exist.
@@ -631,9 +635,9 @@ class Edge(Model):
     def delete(self):
         src = { 'uid': self.src }
         dst = { 'uid': self.dst }
-        lid = self.uid
         label = self.__class__.__name__
-        return self._gdb.delete_link(lid=lid, label=label, src=src, dst=dst) is not None
+        ret = self._gdb.delete_link(kind=self.__class__.__name__, src=src, dst=dst)
+        return ret is not None
 
     @classmethod
     def neo4j_to_model(cls, record):
