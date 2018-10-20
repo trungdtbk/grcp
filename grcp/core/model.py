@@ -361,6 +361,10 @@ class Model(object):
     def put(self):
         raise NotImplemented
 
+    @classmethod
+    def get(cls, *args, **kwargs):
+        raise NotImplemented
+
     def delete(self):
         raise NotImplemented
 
@@ -584,6 +588,14 @@ class Nexthop(Node):
         properties['nexthop'] = nexthop
         return super(Nexthop, cls).get_or_create({'nexthop': nexthop}, properties)
 
+    @classmethod
+    def get_and_delete(cls, nexthop):
+        match = {'nexthop': nexthop}
+        record = self._gdb.delete_node(kind=cls.__name__, match=match)
+        if record:
+            return cls.entity_to_model(record[0]['node'])
+        return None
+
     def match_dict(self):
         return {'nexthop': self.nexthop}
 
@@ -625,19 +637,19 @@ class Edge(Model):
             return cls.neo4j_to_model(record)
         return None
 
-    @classmethod
-    def update(cls, uid, attributes):
-        record = cls._gdb.update_link(cls.__name__, uid, properties=attributes)
-        if record:
-            return cls.neo4j_to_model(record)
-        return None
-
     def delete(self):
         src = { 'uid': self.src }
         dst = { 'uid': self.dst }
         label = self.__class__.__name__
         ret = self._gdb.delete_link(kind=self.__class__.__name__, src=src, dst=dst)
         return ret is not None
+
+    @classmethod
+    def get_and_delete(self, src_match, dst_match):
+        record = cls._gdb.delete_link(kind=cls.__name__, src=src_match, dst=dst_match)
+        if record:
+            return cls.neo4j_to_model(record)
+        return None
 
     @classmethod
     def neo4j_to_model(cls, record):
@@ -706,6 +718,12 @@ class Route(Edge):
 class Session(Edge):
     """Represent a BGP session between a Border and a Neighbor."""
     _base_class = False
+
+    @classmethod
+    def get_or_create(cls, border, neighbor, properties={}):
+        src_match = {'routerid': border, 'label': Border.__name__}
+        dst_match = {'routerid': neighbor, 'label': Neighbor.__name__}
+        return super(Session, cls).get_or_create(src_match, dst_match, properties)
 
 
 class Link(Edge):
