@@ -1,7 +1,6 @@
 import docker
 import time, os, itertools
 import ipaddress
-import networkx as nx
 import numpy as np
 
 from random import randint
