@@ -151,6 +151,14 @@ class ModelBasicTest(unittest.TestCase):
         query = query.filter(model.Path.inter_bw >= 5, model.Path.route_pref <= 100)
         self.get_and_test(query, expected=1)
 
+    def test_model_link_delete(self):
+        border1 = self.put_and_test(model.Border(routerid='1.1.1.1'))
+        border2 = self.put_and_test(model.Border(routerid='2.2.2.2'))
+        link = self.put_and_test(model.IntraLink(src=border1.uid, dst=border2.uid))
+        self.assertTrue(link.delete())
+        self.assertTrue(border1.delete())
+        self.assertTrue(border2.delete())
+
 if __name__ == '__main__':
     start_neo4j()
     model.initialize()
