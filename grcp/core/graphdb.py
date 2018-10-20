@@ -87,7 +87,6 @@ class Neo4J(GraphDB):
         """Run a Cypher query."""
         if not query:
             return []
-        print(query)
         try:
             with self.driver.session() as session:
                 return session.run(query, params)
@@ -120,11 +119,9 @@ class Neo4J(GraphDB):
         """
         kind = ':' + kind if kind else ''
         where_str = self._dict_to_match_str(match)
-        qry = 'MATCH (node {label} {filter_str}) DETACH DELETE node RETURN count(node) AS count;'
+        qry = 'MATCH (node {label} {filter_str}) DETACH DELETE node RETURN node'
         records = list(self.exec_query(qry.format(label=kind, filter_str=where_str)))
-        if records:
-            return records[0]['count']
-        return None
+        return records
 
     def create_node(self, labels, match, properties={}):
         """Create a new node with labels as node kind and properties. If a 'uid' in
