@@ -508,7 +508,7 @@ class Router(Node):
     @classmethod
     def update(cls, routerid, properties):
         """Update a Router. """
-        assert type(properties, dict)
+        assert type(properties) == dict
         match_dict = {'routerid': routerid, 'label': cls.__name__}
         record = cls._gdb.update_node(match_dict, cls.__name__, properties)
         if record:
