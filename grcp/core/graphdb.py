@@ -134,7 +134,6 @@ class Neo4J(GraphDB):
             kind = ':' % labels
         match = self._dict_to_match_str(match)
         qry = 'MERGE ( node:{kind} {match} ) '\
-              'ON MATCH SET node=$properties '\
               'ON CREATE SET node=$properties '\
               'RETURN node'
         qry = qry.format(kind=kind, match=match)
