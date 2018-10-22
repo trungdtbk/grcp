@@ -166,6 +166,8 @@ class Neo4J(GraphDB):
         dst_match = self._dict_to_match_str(dst)
         set_str = []
         set_str = self._dict_to_set_str(kind, properties)
+        if set_str:
+            set_str = ' ON CREATE ' + set_str
         qry = 'MATCH ( src {src_match} ), (dst {dst_match} ) '\
               'MERGE ( src )-[{name}:{kind}]->( dst ) '\
               '{set_str} RETURN src.uid AS src, dst.uid AS dst, {name}'
