@@ -635,6 +635,13 @@ class Edge(Model):
             return cls.neo4j_to_model(record)
         return None
 
+    @classmethod
+    def update(cls, src_match, dst_match, **kwargs):
+        record = cls._gdb.update_link(cls.__name__, src_match, dst_match, kwargs)
+        if record:
+            return cls.neo4j_to_model(record)
+        return None
+
     def delete(self):
         src = { 'uid': self.src }
         dst = { 'uid': self.dst }
@@ -712,6 +719,11 @@ class Route(Edge):
         dst_match = {'prefix': prefix, 'label': Prefix.__name__}
         return super(Route, cls).get_or_create(src_match, dst_match, **properties)
 
+    @classmethod
+    def update(cls, nexthop, prefix, **properties):
+        src_match = {'nexthop': nexthop, 'label': Nexthop.__name__}
+        dst_match = {'prefix': prefix, 'label': Prefix.__name__}
+        return super(Route, cls).update(src_match, dst_match, **properties)
 
 class Session(Edge):
     """Represent a BGP session between a Border and a Neighbor."""

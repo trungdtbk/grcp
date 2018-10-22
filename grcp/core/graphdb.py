@@ -177,16 +177,14 @@ class Neo4J(GraphDB):
             return records[0]
         return None
 
-    def update_link(self, kind, match, properties={}):
-        set_str = self._dict_to_set_str(name, properties)
-        where_str = self._dict_to_match_str(match)
-        if where_str:
-            where_str = 'WHERE ' + where_str
-        qry = 'MATCH ( src )-[{name} {kind}]->( dst) '\
-              '{where_str} {set_str} '\
-              'RETURN src.uid AS src, dst.uid AS dst, {name}'
+    def update_link(self, kind, src, dst, properties={}):
+        set_str = self._dict_to_set_str(kind, properties)
+        src_match = self._dict_to_match_str(src)
+        dst_match = self._dict_to_match_str(dst)
+        qry = 'MATCH ( src {src_match} )-[{name}: {kind}]->( dst {dst_match} ) '\
+              '{set_str} RETURN src.uid AS src, dst.uid AS dst, {name}'
         records = list(self.exec_query(
-            qry.format(name=kind, kind=kind, set_str=set_str), where_str=where_str))
+            qry.format(name=kind, kind=kind, set_str=set_str, src_match=src_match, dst_match=dst_match)))
         if records:
             return records[0]
         return None
