@@ -10,4 +10,5 @@ install:
     - pip3 install -r requirements.txt
     - pip3 install -r test-requirements.txt
 script:
-    - python3 -m pytest --cov=. tests/
+    - "docker run -d --publish=7474:7474 --publish=7687:7687 -e NEO4J_AUTH=none neo4j:3.4"
+    - "python3 -m pytest --cov=. tests/"
