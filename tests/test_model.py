@@ -8,8 +8,8 @@ from .utils import start_neo4j, stop_neo4j, random_ip, random_prefix
 
 from grcp.core import model
 
-start_neo4j()
 model.initialize()
+model.clear()
 
 class ModelBasicTest(unittest.TestCase):
     """Test basic operation put/get/update on models."""
@@ -71,8 +71,7 @@ class ModelBasicTest(unittest.TestCase):
         prefix = self.put_and_test(model.Prefix(prefix='1.0.0.0/24'))
         attributes = dict(local_pref=100, origin=0, as_path=[1,2,3], med=100)
         route = self.exec_and_test(model.Route.get_or_create,
-                                   neighbor='10.0.0.1', prefix='1.0.0.0/24',
-                                   properties=attributes)
+                                   neighbor='10.0.0.1', prefix='1.0.0.0/24', **attributes)
         self.verify_attributes(route, attributes)
 
     def test_intra_link_model(self):
@@ -101,9 +100,7 @@ class ModelBasicTest(unittest.TestCase):
         border = self.exec_and_test(model.Border.get_or_create, routerid='2.2.2.2')
         properties = {}
         link = self.exec_and_test(
-                model.InterIngress.get_or_create,
-                nexthop=nexthop.nexthop, border=border.routerid,
-                properties=properties)
+                model.InterIngress.get_or_create, nexthop.nexthop, border.routerid, **properties)
 
     def test_inter_egress_model(self):
         border = self.exec_and_test(model.Border.get_or_create, routerid='2.2.2.2')
@@ -111,25 +108,24 @@ class ModelBasicTest(unittest.TestCase):
         properties = dict(cost=10, pathid=1, bandwidth=100, utilization=1, loss=1, delay=1,
                           dp='dp1', port='port1', vlan='vlan1')
         link = self.exec_and_test(
-                model.InterEgress.get_or_create,
-                border=border.routerid, nexthop=nexthop.nexthop, properties=properties)
+                model.InterEgress.get_or_create, border.routerid, nexthop.nexthop, **properties)
         self.verify_attributes(link, properties)
 
     def test_session_model(self):
         border = self.put_and_test(model.Border(routerid='2.2.2.2'))
         neighbor = self.exec_and_test(
-                model.Neighbor.get_or_create,
-                peer_ip='1.1.1.1', peer_as=1, local_ip='2.2.2.2', local_as=2)
+                model.Neighbor.get_or_create, peer_ip='1.1.1.1', peer_as=1, local_ip='2.2.2.2', local_as=2)
         link = self.put_and_test(model.Session(src=border.uid, dst=neighbor.uid))
 
     def test_path_query(self):
-        border1 = self.exec_and_test(model.Border.get_or_create, routerid='1.1.1.1', properties={'state': 'up'})
-        border2 = self.exec_and_test(model.Border.get_or_create, routerid='2.2.2.2', properties={'state': 'up'})
-        peer1 = self.exec_and_test(model.Neighbor.get_or_create, peer_ip='3.3.3.3', peer_as=1, properties={'state': 'up'})
-        peer2 = self.exec_and_test(model.Neighbor.get_or_create, peer_ip='4.4.4.4', peer_as=2, properties={'state': 'up'})
-        nexthop1 = self.exec_and_test(model.Nexthop.get_or_create, nexthop='10.0.0.1', properties={'state': 'up'})
-        nexthop2 = self.exec_and_test(model.Nexthop.get_or_create, nexthop='10.0.0.2', properties={'state': 'up'})
-        prefix = self.exec_and_test(model.Prefix.get_or_create, prefix='1.0.0.0/24', properties={'state': 'up'})
+        border1 = self.exec_and_test(model.Border.get_or_create, routerid='1.1.1.1', state='up')
+        border2 = self.exec_and_test(model.Border.get_or_create, routerid='2.2.2.2', state='up')
+        peer1 = self.exec_and_test(model.Neighbor.get_or_create, peer_ip='3.3.3.3', peer_as=1, state='up')
+        peer2 = self.exec_and_test(model.Neighbor.get_or_create, peer_ip='4.4.4.4', peer_as=2, state='up')
+        nexthop1 = self.exec_and_test(model.Nexthop.get_or_create, nexthop='10.0.0.1', state='up')
+        nexthop2 = self.exec_and_test(model.Nexthop.get_or_create, nexthop='10.0.0.2', state='up')
+        prefix = self.exec_and_test(model.Prefix.get_or_create, prefix='1.0.0.0/24', state='up')
+        prefix2 = self.exec_and_test(model.Prefix.get_or_create, prefix='2.0.0.0/24', state='up')
         route1 = self.put_and_test(model.Route(
                         src=nexthop1.uid, dst=prefix.uid, local_pref=100, as_path=[1,2,3],
                         origin='igp', med=100, prefix=prefix.prefix, state='up'))
