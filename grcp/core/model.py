@@ -247,8 +247,8 @@ class PrefixProperty(Property):
 class UIDProperty(Property):
     _type = uuid.UUID
 
-    @staticmethod
-    def generate():
+    @classmethod
+    def generate(cls):
         return str(uuid.uuid4())
 
     classmethod
@@ -474,19 +474,19 @@ class Node(Model):
         return record is not None
 
     @classmethod
-    def get_or_create(cls, match_dict, properties={}):
+    def get_or_create(cls, match_dict, **kwargs):
         """Get node based on create if not exist.
 
         :param match_dict: properties and values to match on
         :param properties: dict of properties and values
         :rtype: An instance of this class
         """
+        if 'uid' not in kwargs:
+            kwargs['uid'] = UIDProperty.generate()
         for name, value in cls.default_values().items():
-            properties.setdefault(name, value)
-        if 'uid' not in properties:
-            properties['uid'] = UIDProperty.generate()
+            kwargs.setdefault(name, value)
         record = cls._gdb.create_node(
-                match=match_dict, labels=list(cls._cls_names()), properties=properties)
+                match=match_dict, labels=list(cls._cls_names()), properties=kwargs)
         if record:
             return cls.entity_to_model(record)
         return None
@@ -525,10 +525,9 @@ class Border(Router):
         return {'routerid': self.routerid}
 
     @classmethod
-    def get_or_create(cls, routerid, properties={}):
-        properties['routerid'] = routerid
-        return super(Border, cls).get_or_create(
-                match_dict={'routerid': routerid}, properties=properties)
+    def get_or_create(cls, routerid, **kwargs):
+        kwargs['routerid'] = routerid
+        return super(Border, cls).get_or_create(match_dict={'routerid': routerid}, **kwargs)
 
 class Neighbor(Router):
     """Represent a router belonging to a neighbor."""
@@ -543,14 +542,13 @@ class Neighbor(Router):
         return {'peer_ip': self.peer_ip}
 
     @classmethod
-    def get_or_create(cls, peer_ip, peer_as, local_ip=None, local_as=None, properties={}):
-        properties['routerid'] = peer_ip
-        properties['peer_ip'] = peer_ip
-        properties['peer_as'] = peer_as
-        properties['local_as'] = local_as
-        properties['local_ip'] = local_ip
-        return super(Neighbor, cls).get_or_create(
-                match_dict={'routerid': peer_ip}, properties=properties)
+    def get_or_create(cls, peer_ip, peer_as, local_ip=None, local_as=None, **kwargs):
+        kwargs['routerid'] = peer_ip
+        kwargs['peer_ip'] = peer_ip
+        kwargs['peer_as'] = peer_as
+        kwargs['local_as'] = local_as
+        kwargs['local_ip'] = local_ip
+        return super(Neighbor, cls).get_or_create(match_dict={'routerid': peer_ip}, **kwargs)
 
 
 class Prefix(Node):
@@ -570,9 +568,9 @@ class Prefix(Node):
         return None
 
     @classmethod
-    def get_or_create(cls, prefix, properties={}):
-        properties['prefix'] = prefix
-        return super(Prefix, cls).get_or_create({'prefix': prefix}, properties)
+    def get_or_create(cls, prefix, **kwargs):
+        kwargs['prefix'] = prefix
+        return super(Prefix, cls).get_or_create({'prefix': prefix}, **kwargs)
 
 
 class Nexthop(Node):
@@ -584,9 +582,9 @@ class Nexthop(Node):
     vlan = StringProperty('vlan')
 
     @classmethod
-    def get_or_create(cls, nexthop, properties={}):
-        properties['nexthop'] = nexthop
-        return super(Nexthop, cls).get_or_create({'nexthop': nexthop}, properties)
+    def get_or_create(cls, nexthop, **kwargs):
+        kwargs['nexthop'] = nexthop
+        return super(Nexthop, cls).get_or_create({'nexthop': nexthop}, **kwargs)
 
     @classmethod
     def get_and_delete(cls, nexthop):
@@ -626,13 +624,13 @@ class Edge(Model):
         return None
 
     @classmethod
-    def get_or_create(cls, src_match, dst_match, properties):
-        for attr, value in properties.items():
+    def get_or_create(cls, src_match, dst_match, **kwargs):
+        for attr, value in kwargs.items():
             value = getattr(cls, attr)._validate(value)
-            properties[attr] = value
-        if 'uid' not in properties:
-            properties['uid'] = UIDProperty.generate()
-        record = cls._gdb.create_link(cls.__name__, src_match, dst_match, properties)
+            kwargs[attr] = value
+        if 'uid' not in kwargs:
+            kwargs['uid'] = UIDProperty.generate()
+        record = cls._gdb.create_link(cls.__name__, src_match, dst_match, kwargs)
         if record:
             return cls.neo4j_to_model(record)
         return None
@@ -708,11 +706,11 @@ class Route(Edge):
     prefix = PrefixProperty('prefix')
 
     @classmethod
-    def get_or_create(cls, neighbor, prefix, properties):
+    def get_or_create(cls, neighbor, prefix, **properties):
         properties['prefix'] = prefix
         src_match = {'nexthop': neighbor, 'label': Nexthop.__name__}
         dst_match = {'prefix': prefix, 'label': Prefix.__name__}
-        return super(Route, cls).get_or_create(src_match, dst_match, properties)
+        return super(Route, cls).get_or_create(src_match, dst_match, **properties)
 
 
 class Session(Edge):
@@ -720,10 +718,10 @@ class Session(Edge):
     _base_class = False
 
     @classmethod
-    def get_or_create(cls, border, neighbor, properties={}):
+    def get_or_create(cls, border, neighbor, **properties):
         src_match = {'routerid': border, 'label': Border.__name__}
         dst_match = {'routerid': neighbor, 'label': Neighbor.__name__}
-        return super(Session, cls).get_or_create(src_match, dst_match, properties)
+        return super(Session, cls).get_or_create(src_match, dst_match, **properties)
 
 
 class Link(Edge):
@@ -750,19 +748,19 @@ class IntraLink(Link):
     weight = WeightProperty('weight')
 
     @classmethod
-    def get_or_create(cls, border1, border2, properties):
+    def get_or_create(cls, border1, border2, **properties):
         src_match = {'routerid': border1, 'label': Border.__name__}
         dst_match = {'routerid': border2, 'label': Border.__name__}
-        return super(IntraLink, cls).get_or_create(src_match, dst_match, properties)
+        return super(IntraLink, cls).get_or_create(src_match, dst_match, **properties)
 
 
 class InterIngress(Link):
     """Represent ingress link Nexthop --> Border."""
     @classmethod
-    def get_or_create(cls, nexthop, border, properties):
+    def get_or_create(cls, nexthop, border, **properties):
         src_match = {'nexthop': nexthop, 'label': Nexthop.__name__}
         dst_match = {'routerid': border, 'label': Border.__name__}
-        return super(InterIngress, cls).get_or_create(src_match, dst_match, properties)
+        return super(InterIngress, cls).get_or_create(src_match, dst_match, **properties)
 
 
 class InterEgress(Link):
@@ -771,10 +769,10 @@ class InterEgress(Link):
     pathid = IntegerProperty(name='pathid', required=True)
 
     @classmethod
-    def get_or_create(cls, border, nexthop, properties):
+    def get_or_create(cls, border, nexthop, **properties):
         src_match = {'routerid': border, 'label': Border.__name__}
         dst_match = {'nexthop': nexthop, 'label': Nexthop.__name__}
-        return super(InterEgress, cls).get_or_create(src_match, dst_match, properties)
+        return super(InterEgress, cls).get_or_create(src_match, dst_match, **properties)
 
 
 class Advertise(Edge):
