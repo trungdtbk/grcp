@@ -4,6 +4,7 @@ import eventlet
 
 from grcp.app_manager import AppBase
 from .controller import RouterController
+from .stats import PrometheusQuery
 from .event import EventBase
 from . import model
 
@@ -53,6 +54,7 @@ class TopologyManager(AppBase):
         self.prefixes = set()
         self.nexthops = set()
         self.controller = None
+        self.stats_collector = PrometheusQuery(self.link_stats_change_handler)
         model.initialize()
         self.clear()
 
@@ -62,7 +64,7 @@ class TopologyManager(AppBase):
     def start(self):
         super(TopologyManager, self).start()
         self.controller = RouterController(self)
-        #eventlet.spawn(self.stats_collector.run)
+        eventlet.spawn(self.stats_collector.run)
         return eventlet.spawn(self.controller)
 
     def link_stats_change_handler(self, link):
