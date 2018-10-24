@@ -725,6 +725,7 @@ class Route(Edge):
         dst_match = {'prefix': prefix, 'label': Prefix.__name__}
         return super(Route, cls).update(src_match, dst_match, **properties)
 
+
 class Session(Edge):
     """Represent a BGP session between a Border and a Neighbor."""
     _base_class = False
@@ -754,6 +755,13 @@ class Link(Edge):
         if links:
             return links[0]
         return None
+
+    @classmethod
+    def update(cls, src_uid, dst_uid, **properties):
+        src_match = {'uid': src_uid}
+        dst_match = {'uid': dst_uid}
+        return super(Link, cls).update(src_match, dst_match, **properties)
+
 
 class IntraLink(Link):
     """Represent link Border --> Border."""
