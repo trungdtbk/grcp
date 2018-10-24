@@ -112,9 +112,7 @@ class TopologyManager(AppBase):
         return peer
 
     def route_up(self, nexthop, prefix, local_pref=100, med=0, as_path=[], origin=0):
-        # create nexthop and prefix if not exist in db
-        if nexthop not in self.nexthops and model.Nexthop.get_or_create(nexthop):
-            self.nexthops.add(nexthop)
+        self.create_nexthop(nexthop)
         if prefix not in self.prefixes and model.Prefix.get_or_create(prefix):
             self.prefixes.add(prefix)
         if not (nexthop in self.nexthops and prefix in self.prefixes):
@@ -137,7 +135,14 @@ class TopologyManager(AppBase):
             self.send_event_to_observers(EventRouteDel(route))
         return route
 
+    def create_nexthop(self, nexthop):
+        if nexthop is None:
+            return
+        if nexthop not in self.nexthops and model.Nexthop.get_or_create(nexthop, state='up'):
+            self.nexthops.add(nexthop)
+
     def nexthop_up(self, routerid, nexthop, pathid, dp, port, vlan):
+        self.create_nexthop(nexthop)
         link = model.InterEgress.get_or_create(routerid, nexthop,
                 **{'state': 'up', 'pathid': pathid, 'dp': dp, 'port': port, 'vlan': vlan})
         if link:
