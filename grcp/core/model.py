@@ -44,6 +44,8 @@ class Property(object):
     @classmethod
     def _validate(cls, value):
         """subclass should override this."""
+        if value is None:
+            return value
         try:
             value = cls._type(value)
         except:
@@ -496,7 +498,15 @@ class Router(Node):
     """A model represents a BGP Router."""
     _base_class = False
 
-    routerid = IPAddressProperty('routerid', indexed=True, required=True)
+    # for a Neighbor routerid is the IP of the neighbor which it uses to establish
+    # BGP session with us
+    # for a Border routerid has format dp_id@router_ident, ex. 2@router1
+    routerid = StringProperty('routerid', indexed=True, required=True)
+    # a (mpls) label is used to tunnel packet from on Border to this border
+    # we're going to use label stack for mapping packet to the correct outport
+    # in ingress router: [vid][label/pathid][ip data] --> egress
+    # in egress router: pop label -> pop pathid, write metadata --> FIB table
+    label = IntegerProperty('label')
 
     @classmethod
     def get(cls, routerid):
@@ -520,9 +530,11 @@ class Border(Router):
     _base_class = False
 
     local_as = IntegerProperty(name='local_as')
+    dp_id = IntegerProperty(name='dp_id')
+    dp_name = StringProperty(name='dp_name')
 
     def match_dict(self):
-        return {'routerid': self.routerid}
+        return {'routerid': self.routerid, 'dp_id': self.dp_id}
 
     @classmethod
     def get_or_create(cls, routerid, **kwargs):
@@ -625,9 +637,11 @@ class Edge(Model):
 
     @classmethod
     def get_or_create(cls, src_match, dst_match, **kwargs):
-        for attr, value in kwargs.items():
+        for attr, value in list(kwargs.items()):
             value = getattr(cls, attr)._validate(value)
-            kwargs[attr] = value
+            kwargs.pop(attr)
+            if value is not None:
+                kwargs[attr] = value
         if 'uid' not in kwargs:
             kwargs['uid'] = UIDProperty.generate()
         record = cls._gdb.create_link(cls.__name__, src_match, dst_match, kwargs)
@@ -745,9 +759,10 @@ class Link(Edge):
     delay = LatencyProperty('delay', default=1)
     bandwidth = BandwidthProperty('bandwidth', default=1)
     utilization = FloatProperty('utilization', default=0)
-    port = StringProperty(name='port')
-    dp = StringProperty(name='dp')
-    vlan = StringProperty(name='vlan')
+    dp_id = IntegerProperty(name='dp_id')
+    port_name = StringProperty(name='port_name')
+    port_no = IntegerProperty(name='port_no')
+    vlan_vid = IntegerProperty(name='vlan_vid')
 
     @classmethod
     def get(cls, uid):
@@ -865,11 +880,10 @@ class Mapping(Edge):
     """Represent a RIB/FIB entry of a node. A mapping links a node to a prefix"""
     load = FloatProperty(name='load', default=0)
     prefix = PrefixProperty(name='prefix')
-    ingress = IPAddressProperty(name='ingress')
-    egress = IPAddressProperty(name='egress')
-    nexthop = IPAddressProperty(name='nexthop')
-    neighbor = IPAddressProperty(name='neighbor')
-    pathid = IntegerProperty(name='pathid')
+    ingress = StringProperty(name='ingress')
+    egress = StringProperty(name='egress')
+    neighbor = StringProperty(name='neighbor')
+    pathid = StringProperty(name='pathid')
 
     def put(self):
         properties = self._get_values()
@@ -887,7 +901,7 @@ class Mapping(Edge):
         src_match = {'routerid': routerid, 'label': label}
         dst_match = {'prefix': prefix, 'label': Prefix.__name__}
         properties['prefix'] = prefix
-        return super(Mapping, cls).get_or_create(src_match, dst_match, properties)
+        return super(Mapping, cls).get_or_create(src_match, dst_match, **properties)
 
 
 def initialize(neo4j_uri='bolt://localhost:7687', neo4j_user=None, neo4j_pass=None):

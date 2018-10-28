@@ -41,13 +41,17 @@ class RouterController(object):
     def _process_router_msg(self, conn_id, msg):
         msg_type = msg.get('msg_type')
         routerid = msg.get('routerid')
+        dp_id = msg.get('dp_id')
         if routerid is None:
             return
         if msg_type == 'router_up':
+            if routerid in self.router_to_connection:
+                self.handler.router_up(routerid)
+            else:
+                self.handler.router_register(routerid, dp_id=dp_id)
             self.router_to_connection[routerid] = conn_id
-            self.handler.router_up(routerid)
         elif msg_type == 'router_down':
-            self.router_to_connection.pop(conn_id, None)
+            self.router_to_connection[routerid] = None
             self.handler.router_down(routerid)
 
     def _process_peer_msg(self, msg):
@@ -85,10 +89,13 @@ class RouterController(object):
             return
         if msg.get('msg_type') == 'nexthop_up':
             pathid = msg['pathid']
-            dp = msg.get('dp')
-            port = msg.get('port')
-            vlan = msg.get('vlan')
-            self.handler.nexthop_up(routerid, nexthop, pathid, dp, port, vlan)
+            dp_id = msg.get('dp_id')
+            port_name = msg.get('port_name')
+            port_no = msg.get('port_no')
+            vlan_vid = msg.get('vlan_vid')
+            self.handler.nexthop_up(routerid=routerid, nexthop=nexthop,
+                                    pathid=pathid, dp_id=dp_id, port_no=port_no,
+                                    port_name=port_name, vlan_vid=vlan_vid)
         else:
             self.handler.nexthop_down(routerid, nexthop)
 

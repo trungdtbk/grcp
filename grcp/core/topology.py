@@ -75,12 +75,20 @@ class TopologyManager(AppBase):
         logger.debug('send msg to %s' % router_id)
         self.controller.send_msg(router_id, msg)
 
-    def router_up(self, routerid, **kwargs):
-        logger.debug('router up: %s' % routerid)
+    def router_register(self, routerid, **kwargs):
+        logger.debug('register router: %s' % routerid)
         kwargs['state'] = 'up'
         router = model.Border.get_or_create(routerid=routerid, **kwargs)
         if router:
             logger.info('added router to database: %s' % routerid)
+            self.send_event_to_observers(EventRouterUp(router))
+        return router
+
+    def router_up(self, routerid):
+        logger.debug('router up: %s' % routerid)
+        router = model.Border.update(routerid, {'state': 'up'})
+        if router:
+            logger.info('updated router to database: %s' % routerid)
             self.send_event_to_observers(EventRouterUp(router))
         return router
 
@@ -112,20 +120,21 @@ class TopologyManager(AppBase):
         return peer
 
     def route_up(self, nexthop, prefix, local_pref=100, med=0, as_path=[], origin=0):
-        self.create_nexthop(nexthop)
-        if prefix not in self.prefixes and model.Prefix.get_or_create(prefix):
-            self.prefixes.add(prefix)
-        if not (nexthop in self.nexthops and prefix in self.prefixes):
-            logger.error('failed to create nexthop/prefix in db: %s/%s' % (nexthop, prefix))
-            return
-        route = model.Route.get_or_create(nexthop, prefix, **{'state': 'up', 'origin': origin,
-                                          'med': med, 'as_path': as_path, 'local_pref': local_pref})
+        if nexthop not in self.nexthops:
+            self.create_nexthop(nexthop)
+        elif prefix not in self.prefixes:
+            self.create_prefix(prefix)
+            route = model.Route.get_or_create(nexthop, prefix, state='up', med=med,
+                                              origin=origin, as_path=as_path,
+                                              local_pref=local_pref)
+        else:
+            route = model.Route.update(nexthop, prefix, state='up')
+
         if route:
             logger.info('added route to db: %s via %s' % (prefix, nexthop))
             self.send_event_to_observers(EventRouteAdd(route))
             return route
         logger.error('failed to create route in db: %s via %s' % (prefix, nexthop))
-        return
 
     def route_down(self, peer_ip, nexthop, prefix):
         """ simply mark the Route relationship as down"""
@@ -135,16 +144,23 @@ class TopologyManager(AppBase):
             self.send_event_to_observers(EventRouteDel(route))
         return route
 
+    def create_prefix(self, prefix):
+        if prefix is None:
+            return
+        if prefix not in self.prefixes and model.Prefix.get_or_create(prefix, state='up'):
+            self.prefixes.add(prefix)
+
     def create_nexthop(self, nexthop):
         if nexthop is None:
             return
         if nexthop not in self.nexthops and model.Nexthop.get_or_create(nexthop, state='up'):
             self.nexthops.add(nexthop)
 
-    def nexthop_up(self, routerid, nexthop, pathid, dp, port, vlan):
+    def nexthop_up(self, routerid, nexthop, pathid, dp_id, vlan_vid, port_no, port_name):
         self.create_nexthop(nexthop)
         link = model.InterEgress.get_or_create(routerid, nexthop,
-                **{'state': 'up', 'pathid': pathid, 'dp': dp, 'port': port, 'vlan': vlan})
+                **{'state': 'up', 'pathid': pathid, 'dp_id': dp_id, 'port_no': port_no,
+                    'port_name': port_name, 'vlan_vid': vlan_vid})
         if link:
             logger.info('inter_egress link up: %s -> %s' % (routerid, nexthop))
             self.send_event_to_observers(EventLinkUp(link))
@@ -169,21 +185,36 @@ class TopologyManager(AppBase):
             self.send_event_to_observers(EventLinkDown(link))
 
     def create_mapping(self, routerid, prefix, path_info, for_peer=False):
-        """ Create a path mapping between a src node (i.e Router or Neighbor) and a prefix. """
+        """ Create a path mapping between a src node (i.e Router or Neighbor) and a prefix.
+        Example of a path_info:
+        {
+            'ingress': { 'id': 'router1', 'vlan_vid': 100, 'label': 10, 'dp_id': 1 }, # vlan connected to the egress
+            'egress': { 'id': 'router2, 'vlan_vid': 200, 'label': 20, 'dp_id': 2 }, # vlan connected to the neighbor
+            'neighbor': { 'id': nexthop, 'pathid': 1 },
+        }
+        """
         if not path_info:
             return
         path = {
-            'ingress': path_info['ingress'],
-            'egress': path_info['egress'],
-            'neighbor': path_info['neighbor'],
-            'pathid': path_info['pathid'],
-            'nexthop': path_info['nexthop'],
-            'state': 'up'}
+                'ingress': path_info['ingress']['id'],
+                'egress': path_info['egress']['id'],
+                'neighbor': path_info['neighbor']['id'],
+                'pathid': path_info['neighbor']['pathid'],
+                'state': 'up'}
         mapping = model.Mapping.get_or_create(routerid, prefix, path, for_peer)
-        logger.info('created a mapping: %s (is peer: %s) -> %s' % (routerid, for_peer, prefix))
+        if mapping:
+            logger.info('created a mapping: %s (is peer: %s) -> %s' % (routerid, for_peer, prefix))
+            label = model.Border.__name__ if not for_peer else model.Neighbor.__name__
+            for rid in set([path_info['ingress']['id'], path_info['egress']['id']]):
+                self.send_msg(rid, {
+                    'msg_type': 'mapping',
+                    'src': {'id': routerid, 'type': label},
+                    'dst': {'id': prefix, 'type': model.Prefix.__name__},
+                    'ingress': path_info['ingress'],
+                    'egress': path_info['egress'],
+                    'neighbor': path_info['neighbor']})
         return mapping
 
     def delete_mapping(self, src_node_id, prefix):
         """Delete a path mapping between a src_node_id and a prefix."""
         pass
-

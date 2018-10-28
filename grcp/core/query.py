@@ -143,11 +143,13 @@ class Query(object):
                   '(src)-[session:{in_kind}*0..1 {state:"up"}]->(ingress:{ingress_kind} {state:"up"}), '\
                   '(ingress)-[intra:{intra_kind}*0..1 {state:"up"}]->(egress:{egress_kind} {state:"up"}), '\
                   '(egress)-[inter:{inter_kind} {state:"up"}]->(neigh:{neigh_kind} {state:"up"}), '\
-                  '(neigh)-[route:{route_kind}]->(dst) {early_filter} '\
+                  '(neigh)-[route:{route_kind} {state:"up"}]->(dst) {early_filter} '\
                   'WITH src, dst, neigh, ingress, egress, inter, route, intra[0] as intra '\
-                  'WITH {src: src, dst: dst, ingress: ingress.routerid, '\
-                  'egress: egress.routerid, nexthop: neigh.nexthop, pathid: inter.pathid, '\
-                  '{intra}, {inter}, {route} } AS {name} {where} RETURN {name} {sort}'
+                  'WITH {src: src, dst: dst, {intra}, {inter}, {route}, '\
+                  'ingress: {id: ingress.routerid, vlan_vid: intra.vlan_vid, label: ingress.label, dp_id: ingress.dp_id}, '\
+                  'egress: {id: egress.routerid, vlan_vid: inter.vlan_vid, label: egress.label, dp_id: egress.dp_id}, '\
+                  'neighbor: {id: neigh.nexthop, pathid: inter.pathid} } '\
+                  'AS {name} {where} RETURN {name} {sort}'
 
             qry = qry.replace('{early_filter}', early_filter)
             intra_props = []
