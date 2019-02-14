@@ -41,14 +41,16 @@ class RouterController(object):
     def _process_router_msg(self, conn_id, msg):
         msg_type = msg.get('msg_type')
         routerid = msg.get('routerid')
-        dp_id = msg.get('dp_id')
+        attr = {}
+        if 'dp_id' in msg:
+            attr['dp_id'] = msg['dp_id']
         if routerid is None:
             return
         if msg_type == 'router_up':
             if routerid in self.router_to_connection:
                 self.handler.router_up(routerid)
             else:
-                self.handler.router_register(routerid, dp_id=dp_id)
+                self.handler.router_register(routerid, **attr)
             self.router_to_connection[routerid] = conn_id
         elif msg_type == 'router_down':
             self.router_to_connection[routerid] = None

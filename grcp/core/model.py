@@ -530,11 +530,9 @@ class Border(Router):
     _base_class = False
 
     local_as = IntegerProperty(name='local_as')
-    dp_id = IntegerProperty(name='dp_id')
-    dp_name = StringProperty(name='dp_name')
 
     def match_dict(self):
-        return {'routerid': self.routerid, 'dp_id': self.dp_id}
+        return {'routerid': self.routerid}
 
     @classmethod
     def get_or_create(cls, routerid, **kwargs):
