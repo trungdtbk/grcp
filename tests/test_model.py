@@ -79,7 +79,7 @@ class ModelBasicTest(unittest.TestCase):
         r2 = self.put_and_test(model.Border(routerid='2.2.2.2'))
         attributes = {
                 'bandwidth': 100, 'loss': 1, 'delay': 10, 'state': 'up',
-                'utilization': 0.8, 'dp': 'dp1', 'port': 'port1', 'vlan': 'vlan1'}
+                'utilization': 0.8, 'dp_id': 1, 'port_name': 'port1', 'vlan_vid': 100}
         link = model.IntraLink(src=r1.uid, dst=r2.uid, **attributes)
         link = self.put_and_test(link)
         link = self.get_and_test(model.Model.query(kind=model.IntraLink), limit=1)
@@ -106,7 +106,7 @@ class ModelBasicTest(unittest.TestCase):
         border = self.exec_and_test(model.Border.get_or_create, routerid='2.2.2.2')
         nexthop = self.exec_and_test(model.Nexthop.get_or_create, nexthop='1.1.1.1')
         properties = dict(cost=10, pathid=1, bandwidth=100, utilization=1, loss=1, delay=1,
-                          dp='dp1', port='port1', vlan='vlan1')
+                          dp_id=1, port_name='port1', vlan_vid=100)
         link = self.exec_and_test(
                 model.InterEgress.get_or_create, border.routerid, nexthop.nexthop, **properties)
         self.verify_attributes(link, properties)
