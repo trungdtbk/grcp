@@ -1,4 +1,4 @@
 neo4j-driver
 docker
-pytest
+pytest>=4.0.0
 pytest-cov
