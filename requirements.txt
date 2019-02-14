@@ -1,2 +1,2 @@
 neo4j-driver
-eventlet
+eventlet==0.17.4

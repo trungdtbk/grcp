@@ -1,6 +1,8 @@
+import eventlet
+eventlet.monkey_patch()
+
 import logging
 import collections
-import eventlet
 
 from grcp.app_manager import AppBase
 from .controller import RouterController

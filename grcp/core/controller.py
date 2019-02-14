@@ -1,10 +1,10 @@
+import eventlet
+eventlet.monkey_patch()
+
 import traceback
 import ipaddress
 import logging
-import eventlet
 import json
-
-eventlet.monkey_patch()
 
 from . import messenger
 from grcp.cfg import CONF

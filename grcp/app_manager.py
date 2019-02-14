@@ -2,14 +2,15 @@
 Application management framework (inspired by Ryu application framework).
 New application to be created by inherit the class AppBase
 """
+import eventlet
+eventlet.monkey_patch()
+
 import importlib
 import inspect
 import logging
 import traceback
 
-import eventlet
 import greenlet
-eventlet.monkey_patch()
 
 logger = logging.getLogger('grcp')
 
