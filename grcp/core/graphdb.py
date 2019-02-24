@@ -11,14 +11,12 @@ specifically to use for a network topology management.
 
 This module is used by the model module which provides an abstraction to BGP routing.
 """
-import os
 import time
 import json
-import logging
 
-DEFAULT_DB_URI = os.environ.get('DB_URI', 'bolt://localhost:7687')
-DEFAULT_DB_USER = os.environ.get('DB_USER', 'neo4j')
-DEFAULT_DB_PASS = os.environ.get('DB_PASS', 'neo4j')
+DEFAULT_DB_URI = 'bolt://localhost:7687'
+DEFAULT_DB_USER = 'neo4j'
+DEFAULT_DB_PASS = 'neo4j'
 
 class GraphDB():
 

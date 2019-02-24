@@ -2,7 +2,7 @@
 """
 Main programm
 """
-import sys, time
+import os, sys, time
 import eventlet
 eventlet.monkey_patch()
 
@@ -12,7 +12,7 @@ from .cfg import CONF
 from .utils import get_logger
 from .app_manager import AppManager
 
-logger = get_logger('grcp', loglevel='debug')
+logger = get_logger('grcp', logfile=os.environ.get('GRCP_LOG'), loglevel='debug')
 
 def main():
     logger.info('starting the controller')

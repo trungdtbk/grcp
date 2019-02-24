@@ -1,6 +1,7 @@
 import eventlet
 eventlet.monkey_patch()
 
+import os
 import logging
 import collections
 
@@ -57,7 +58,11 @@ class TopologyManager(AppBase):
         self.nexthops = set()
         self.controller = None
         self.stats_collector = PrometheusQuery(self.link_stats_change_handler)
-        model.initialize()
+        model.initialize(
+                neo4j_uri=os.environ.get('GRCP_DB_URI'),
+                neo4j_user=os.environ.get('GRCP_DB_USER'),
+                neo4j_pass=os.environ.get('GRCP_DB_PASS'))
+        logger.info('model initialized')
         self.clear()
 
     def clear(self):
