@@ -11,15 +11,15 @@ class GRcpServerTestBase(unittest.TestCase):
         self.start_grcp()
 
     def tearDown(self):
-        pass
+        self.grcp.kill()
 
     def start_grcp(self, port=4567):
         print(os.getcwd())
-        p = subprocess.Popen(['python3', '-m', 'grcp.grcp', '--bind_port', str(port)],
+        self.grcp = subprocess.Popen(['python3', '-m', 'grcp.grcp', '--bind_port', str(port)],
                              stderr=subprocess.PIPE)
         # test if grcp has started successfully
         try:
-            (stdout_data, stderr_data) = p.communicate(timeout=10)
+            (stdout_data, stderr_data) = self.grcp.communicate(timeout=10)
             self.assertFalse(stderr_data)
         except:
             pass
