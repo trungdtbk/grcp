@@ -22,6 +22,7 @@ class GRcpServerTestBase(unittest.TestCase):
             (stdout_data, stderr_data) = self.grcp.communicate(timeout=10)
             self.assertFalse(stderr_data)
         except:
+            print(self.grcp.returncode)
             pass
 
     def test_start_stop(self):
