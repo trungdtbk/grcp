@@ -1,5 +1,6 @@
 FROM faucet/python3
 
+RUN apk --no-cache add gcc python3-dev musl-dev
 COPY . /grcp-src
 RUN pip3 install pip --upgrade
 RUN cd /grcp-src && pip3 install -r requirements.txt
