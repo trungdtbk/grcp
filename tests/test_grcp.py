@@ -20,6 +20,7 @@ class GRcpServerTestBase(unittest.TestCase):
         # test if grcp has started successfully
         try:
             (stdout_data, stderr_data) = self.grcp.communicate(timeout=10)
+            print(stdout_data, stderr_data)
             self.assertFalse(stderr_data)
         except:
             print(self.grcp.returncode)
