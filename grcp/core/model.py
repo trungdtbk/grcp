@@ -902,7 +902,7 @@ class Mapping(Edge):
         return super(Mapping, cls).get_or_create(src_match, dst_match, **properties)
 
 
-def initialize(neo4j_uri='bolt://localhost:7687', neo4j_user=None, neo4j_pass=None):
+def initialize(neo4j_uri=None, neo4j_user=None, neo4j_pass=None):
     """Start the interface to graphdb."""
     Model._gdb = graphdb.Neo4J(db_uri=neo4j_uri, db_user=neo4j_user, db_pass=neo4j_pass)
     Border.create_constraints()
