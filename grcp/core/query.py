@@ -250,8 +250,7 @@ class Query(object):
 
     def fetch(self, limit=None):
         records = self.gdb.exec_query(self._to_cypher(limit))
-        for record in records:
-            yield self.kind.neo4j_to_model(record)
+        return [self.kind.neo4j_to_model(record) for record in records]
 
     def count(self):
         # TODO: to_cypher should return Cypher statement with COUNT
