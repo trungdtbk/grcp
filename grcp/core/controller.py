@@ -20,22 +20,24 @@ class RouterController(object):
         self.messenger = messenger.MessengerServer(self.receive_msg, self.handle_disconnect)
         self.router_to_connection = {}
         self.incomming_queue = eventlet.Queue(512)
-        self.outgoing_quque = eventlet.Queue(512)
+        self.outgoing_queue = eventlet.Queue(512)
 
-    def _recv_loop(self):
+    def _recv_loop(self, queue):
         while True:
-            clientid, msg = self.incomming_queue.get()
+            (clientid, msg) = queue.get()
             self._process_msg(clientid, msg)
+            queue.task_done()
 
-    def _send_loop(self):
+    def _send_loop(self, queue):
         while True:
-            conn_id, msg = self.outgoing_quque.get()
+            (conn_id, msg) = queue.get()
             self.messenger.send(conn_id, msg)
+            queue.task_done()
 
     def __call__(self):
         logger.info('The server is listening on %s:%s' % (CONF.bind_host, CONF.bind_port))
-        eventlet.spawn(self._recv_loop)
-        eventlet.spawn(self._send_loop)
+        eventlet.spawn(self._send_loop, self.outgoing_queue)
+        eventlet.spawn(self._recv_loop, self.incomming_queue)
         self.messenger.run_forever(CONF.bind_port)
 
     def _process_router_msg(self, conn_id, msg):
@@ -112,7 +114,7 @@ class RouterController(object):
             self.handler.intra_link_down(router1, router2)
 
     def _process_msg(self, conn_id, msg):
-        logger.debug('received: %s from %s' % (msg, conn_id))
+        logger.debug('processing msg %s from %s' % (msg, conn_id))
         try:
             msg = json.loads(msg)
             msg_type = msg.get('msg_type')
@@ -131,7 +133,8 @@ class RouterController(object):
             traceback.print_exc()
 
     def receive_msg(self, conn_id, msg):
-        self.incomming_queue.put_nowait((conn_id, msg))
+        self.incomming_queue.put((conn_id, msg))
+        eventlet.sleep(0) # this is really important, without it spawn won't work
 
     def handle_disconnect(self, conn_id):
         # mark routers as down
@@ -151,4 +154,4 @@ class RouterController(object):
         """send a message to a specific router identified by router_id."""
         conn_id = self._get_connection_by_router_id(router_id)
         if conn_id:
-            self.outgoing_quque.put_nowait((conn_id, msg))
+            self.outgoing_queue.put_nowait((conn_id, msg))

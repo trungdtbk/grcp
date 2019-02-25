@@ -84,7 +84,8 @@ class TopologyManager(AppBase):
 
     def router_register(self, routerid, **kwargs):
         logger.debug('register router: %s' % routerid)
-        kwargs['state'] = 'up'
+        if 'state' not in kwargs:
+            kwargs['state'] = 'unknown'
         router = model.Border.get_or_create(routerid=routerid, **kwargs)
         if router:
             logger.info('added router to database: %s' % routerid)
