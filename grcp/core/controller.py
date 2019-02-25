@@ -134,8 +134,10 @@ class RouterController(object):
             traceback.print_exc()
 
     def receive_msg(self, conn_id, msg):
-        self.incomming_queue.put((conn_id, msg))
-        eventlet.sleep(0) # this is really important, without it spawn won't work
+        #TODO: using queue doesn't work. don't understand why. it hanges up somewhere
+        #self.incomming_queue.put((conn_id, msg))
+        #eventlet.sleep(0) # this is really important, without it spawn won't work
+        self._process_msg(conn_id, msg)
 
     def handle_disconnect(self, conn_id):
         # mark routers as down
