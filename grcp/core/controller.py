@@ -43,11 +43,12 @@ class RouterController(object):
     def _process_router_msg(self, conn_id, msg):
         msg_type = msg.get('msg_type')
         routerid = msg.get('routerid')
-        attr = {}
-        if 'dp_id' in msg:
-            attr['dp_id'] = msg['dp_id']
         if routerid is None:
             return
+        attr = {}
+        for name in ['state', 'name']:
+            if name in msg:
+                attr[name] = msg[name]
         if msg_type == 'router_up':
             if routerid in self.router_to_connection:
                 self.handler.router_up(routerid)
