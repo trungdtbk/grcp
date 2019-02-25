@@ -1,4 +1,4 @@
 neo4j-driver
-eventlet==0.17.4
+eventlet
 twisted==16.0.0
 oslo.config
