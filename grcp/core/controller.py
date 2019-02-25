@@ -1,5 +1,5 @@
 import eventlet
-eventlet.monkey_patch()
+eventlet.monkey_patch(socket=True, time=True)
 
 import traceback
 import ipaddress

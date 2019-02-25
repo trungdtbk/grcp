@@ -2,9 +2,9 @@
 """
 Main programm
 """
-import os, sys, time
-import eventlet
-eventlet.monkey_patch()
+import os
+import sys
+import time
 
 import grcp
 

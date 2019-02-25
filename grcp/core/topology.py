@@ -1,5 +1,5 @@
 import eventlet
-eventlet.monkey_patch()
+eventlet.monkey_patch(socket=True, time=True)
 
 import os
 import logging
@@ -87,6 +87,7 @@ class TopologyManager(AppBase):
         if 'state' not in kwargs:
             kwargs['state'] = 'unknown'
         router = model.Border.get_or_create(routerid=routerid, **kwargs)
+        print(router)
         if router:
             logger.info('added router to database: %s' % routerid)
             self.send_event_to_observers(EventRouterUp(router))
