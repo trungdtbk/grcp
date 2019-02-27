@@ -3,7 +3,7 @@ Application management framework (inspired by Ryu application framework).
 New application to be created by inherit the class AppBase
 """
 import eventlet
-eventlet.monkey_patch(socket=True, time=True)
+eventlet.monkey_patch()
 
 import importlib
 import inspect

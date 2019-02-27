@@ -1,5 +1,5 @@
 import eventlet
-eventlet.monkey_patch(socket=True, time=True)
+eventlet.monkey_patch()
 
 import traceback
 import ipaddress
@@ -63,12 +63,14 @@ class RouterController(object):
         msg_type = msg.get('msg_type')
         peer_ip = msg.get('peer_ip')
         local_ip = msg.get('local_ip')
+        state = msg.get('state', 'down')
         if not (peer_ip and local_ip):
             return
         if msg_type == 'peer_up':
             peer_as = msg.get('peer_as')
             local_as = msg.get('local_as')
-            self.handler.peer_up(peer_ip=peer_ip, peer_as=peer_as, local_ip=local_ip, local_as=local_as)
+            self.handler.peer_up(
+                peer_ip=peer_ip, peer_as=peer_as, local_ip=local_ip, local_as=local_as, state=state)
         else:
             self.handler.peer_down(peer_ip, local_ip)
 

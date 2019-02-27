@@ -1,5 +1,5 @@
 import eventlet
-eventlet.monkey_patch(socket=True, time=True)
+eventlet.monkey_patch()
 
 import os
 import logging
@@ -54,7 +54,7 @@ class TopologyManager(AppBase):
     def __init__(self):
         super(TopologyManager, self).__init__()
         self.name = 'topo_manager'
-        self.prefixes = set()
+        self.prefixes = collections.defaultdict(set)
         self.nexthops = set()
         self.controller = None
         self.stats_collector = PrometheusQuery(self.link_stats_change_handler)
@@ -87,7 +87,6 @@ class TopologyManager(AppBase):
         if 'state' not in kwargs:
             kwargs['state'] = 'unknown'
         router = model.Border.get_or_create(routerid=routerid, **kwargs)
-        print(router)
         if router:
             logger.info('added router to database: %s' % routerid)
             self.send_event_to_observers(EventRouterUp(router))
@@ -109,10 +108,10 @@ class TopologyManager(AppBase):
             self.send_event_to_observers(EventRouterDown(router))
         return router
 
-    def peer_up(self, peer_ip, peer_as, local_ip, local_as):
+    def peer_up(self, peer_ip, peer_as, local_ip, local_as, state='up'):
         logger.debug('peer <as=%s, ip=%s> up' % (peer_as, peer_ip))
         peer = model.Neighbor.get_or_create(peer_ip, peer_as, local_ip, local_as,
-                                            **{'state': 'up'})
+                                            **{'state': state})
         session = model.Session.get_or_create(local_ip, peer_ip, **{'state': 'up'})
         if peer and session:
             logger.info('added peer to database: %s' % peer_ip)
@@ -131,15 +130,18 @@ class TopologyManager(AppBase):
     def route_up(self, nexthop, prefix, local_pref=100, med=0, as_path=[], origin=0):
         if nexthop not in self.nexthops:
             self.create_nexthop(nexthop)
-        elif prefix not in self.prefixes:
+        if prefix not in self.prefixes:
             self.create_prefix(prefix)
-            route = model.Route.get_or_create(nexthop, prefix, state='up', med=med,
-                                              origin=origin, as_path=as_path,
-                                              local_pref=local_pref)
-        else:
-            route = model.Route.update(nexthop, prefix, state='up')
 
+        if nexthop in self.prefixes[prefix]:
+            route = model.Route.update(nexthop, prefix, state='up')
+        else:
+            route = model.Route.get_or_create(
+                    nexthop, prefix, state='up', med=med,
+                    origin=origin, as_path=as_path,
+                    local_pref=local_pref)
         if route:
+            self.prefixes[prefix].add(nexthop)
             logger.info('added route to db: %s via %s' % (prefix, nexthop))
             self.send_event_to_observers(EventRouteAdd(route))
             return route
@@ -156,8 +158,8 @@ class TopologyManager(AppBase):
     def create_prefix(self, prefix):
         if prefix is None:
             return
-        if prefix not in self.prefixes and model.Prefix.get_or_create(prefix, state='up'):
-            self.prefixes.add(prefix)
+        if prefix not in self.prefixes:
+            return model.Prefix.get_or_create(prefix, state='up')
 
     def create_nexthop(self, nexthop):
         if nexthop is None:

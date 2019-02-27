@@ -1,9 +1,6 @@
 """ Implmentation of the communication module to exchange messages between the
 controller and the client routers.
 """
-import eventlet
-eventlet.monkey_patch(socket=True, time=True)
-
 import os, json, logging
 
 from twisted.internet import protocol, reactor
