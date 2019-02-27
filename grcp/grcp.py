@@ -12,7 +12,8 @@ from .cfg import CONF
 from .utils import get_logger
 from .app_manager import AppManager
 
-logger = get_logger('grcp', logfile=os.environ.get('GRCP_LOG', 'STDOUT'), loglevel='debug')
+loglevel = os.environ.get('GRCP_LOG_LEVEL', 'info')
+logger = get_logger('grcp', logfile=os.environ.get('GRCP_LOG', 'STDOUT'), loglevel=loglevel)
 
 def main():
     logger.info('starting the controller')
