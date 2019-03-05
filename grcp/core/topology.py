@@ -215,15 +215,25 @@ class TopologyManager(AppBase):
         mapping = model.Mapping.get_or_create(routerid, prefix, path, for_peer)
         if mapping:
             logger.info('created a mapping: %s (is peer: %s) -> %s' % (routerid, for_peer, prefix))
-            label = model.Border.__name__ if not for_peer else model.Neighbor.__name__
-            for rid in set([path_info['ingress']['id'], path_info['egress']['id']]):
-                self.send_msg(rid, {
-                    'msg_type': 'mapping',
-                    'src': {'id': routerid, 'type': label},
-                    'dst': {'id': prefix, 'type': model.Prefix.__name__},
-                    'ingress': path_info['ingress'],
-                    'egress': path_info['egress'],
-                    'neighbor': path_info['neighbor']})
+            ingress = str(path['ingress'])
+            egress = str(path['egress'])
+            nexthop = str(path['neighbor'])
+            # send the mapping command to the ingress router
+            self.send_msg(ingress, {
+                        'command': 'add_mapping',
+                        'routerid': routerid,
+                        'prefix': prefix,
+                        'nexthop': nexthop,
+                        'egress': egress,
+                        'pathid': path['pathid'],
+                        'for_peer': for_peer})
+            # send the mapping command to the egress router
+            if ingress != egress:
+                self.send_msg(egress, {
+                        'command': 'add_tunnel',
+                        'routerid': egress,
+                        'pathid': path['pathid'],
+                        'nexthop': nexthop})
         return mapping
 
     def delete_mapping(self, src_node_id, prefix):
