@@ -140,7 +140,7 @@ class Query(object):
             if self.early_filter:
                 early_filter = ' WHERE ' + self.early_filter
             qry = 'MATCH (src: {src_kind} {state:"up"}), (dst: {dst_kind} {state:"up"}), '\
-                  '(src)-[session:{in_kind}*0..1 {state:"up"}]->(ingress:{ingress_kind} {state:"up"}), '\
+                  '(src)-[session:{in_kind}*0..1 {state:"up"}]-(ingress:{ingress_kind} {state:"up"}), '\
                   '(ingress)-[intra:{intra_kind}*0..1 {state:"up"}]->(egress:{egress_kind} {state:"up"}), '\
                   '(egress)-[inter:{inter_kind} {state:"up"}]->(neigh:{neigh_kind} {state:"up"}), '\
                   '(neigh)-[route:{route_kind} {state:"up"}]->(dst) {early_filter} '\
