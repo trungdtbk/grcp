@@ -133,6 +133,7 @@ class Neo4J(GraphDB):
         match = self._dict_to_match_str(match)
         qry = 'MERGE ( node:{kind} {match} ) '\
               'ON CREATE SET node=$properties '\
+              'ON MATCH SET node=$properties '\
               'RETURN node'
         qry = qry.format(kind=kind, match=match)
         records = list(self.exec_query(qry, properties=properties))
@@ -165,7 +166,7 @@ class Neo4J(GraphDB):
         set_str = []
         set_str = self._dict_to_set_str(kind, properties)
         if set_str:
-            set_str = ' ON CREATE ' + set_str
+            set_str = ' ON CREATE %s \n ON MATCH %s ' % (set_str, set_str)
         qry = 'MATCH ( src {src_match} ), (dst {dst_match} ) '\
               'MERGE ( src )-[{name}:{kind}]->( dst ) '\
               '{set_str} RETURN src.uid AS src, dst.uid AS dst, {name}'
