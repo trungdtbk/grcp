@@ -143,7 +143,7 @@ class ListProperty(Property):
 
     def incl(self, item):
         """Return query.FilterInclude """
-        return query.FilterInclude(self._code_name, 'INCL', item)
+        return query.FilterInclude(self._code_name, 'in', item)
 
     def excl(self, item):
         return query.FilterExclude(self._code_name, 'EXCL', item)
