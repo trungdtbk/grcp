@@ -40,7 +40,7 @@ class Neo4J(GraphDB):
             except:
                 time.sleep(1)
         if not self.driver:
-            raise Exception('Failed to connect to Neo4j server')
+            raise Exception('Failed to connect to Neo4j server: %s' % uri)
 
     @staticmethod
     def _dict_to_match_str(d):
