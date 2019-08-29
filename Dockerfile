@@ -1,4 +1,4 @@
-FROM faucet/python3
+FROM python:3.6-alpine
 
 RUN apk --no-cache add gcc python3-dev musl-dev
 COPY . /grcp-src
