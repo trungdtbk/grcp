@@ -182,7 +182,7 @@ class TopologyManager(AppBase):
             logger.info('inter_egress link down: %s -> %s' % (routerid, nexthop))
             self.send_event_to_observers(EventLinkDown(link))
 
-    def intra_link_up(self, router1, router2, dp, port, vlan):
+    def intra_link_up(self, router1, router2, dp, port, vlan, **properties):
         link = model.IntraLink.get_or_create(router1, router2,
                 **{'state': 'up', 'dp': dp, 'port': port, 'vlan': vlan})
         if link:

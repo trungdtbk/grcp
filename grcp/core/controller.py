@@ -112,7 +112,11 @@ class RouterController(object):
         if not (router1 and router2):
             return
         if msg.get('msg_type') == 'link_up':
-            self.handler.intra_link_up(router1, router2, msg.get('attributes', {}))
+            attrs = msg.get('attributes', {})
+            if 'dp' in attrs and 'port' in attrs and 'vlan' in attrs:
+                self.handler.intra_link_up(router1, router2, **attrs)
+            else:
+                self.logger.error('Received a mailformed link_up msg: %s' % msg)
         else:
             self.handler.intra_link_down(router1, router2)
 
