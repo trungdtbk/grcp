@@ -3,6 +3,9 @@ Query statistics from Gauge/Prometheus
 """
 import requests
 import time
+import logging
+
+logger = logging.getLogger('grcp.stats')
 
 from . import model
 
@@ -14,9 +17,13 @@ class PrometheusQuery():
         self.interval = interval # in second
 
     def run(self):
+        logger.info('PrometheusQuery started')
         while True:
-            self.links_stats_update()
-            time.sleep(self.interval)
+            try:
+                self.links_stats_update()
+                time.sleep(self.interval)
+            except Exception as e:
+                logger.error('Error in querying stats: %s' % e)
 
     def links_stats_update(self):
         links = list(model.InterEgress.query().fetch()) + list(model.IntraLink.query().fetch())
