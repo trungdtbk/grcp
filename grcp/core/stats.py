@@ -44,6 +44,7 @@ class PrometheusQuery():
                     self.handler(link)
 
     def _query(self, dp_id, port_name, stat_key, rate=True):
+        dp_id = hex(int(dp_id))
         query = '%s{job="gauge",dp_id="%s",port="%s"}' % (stat_key, dp_id, port_name)
         if rate:
             query = 'rate(%s[%dm])' % (query, self.interval/60)
