@@ -28,13 +28,14 @@ class PrometheusQuery():
     def links_stats_update(self):
         links = list(model.InterEgress.query().fetch()) + list(model.IntraLink.query().fetch())
         for link in links:
+            logger.debug('Updating stats for link: %s' % link)
             self._link_stats_update(link)
 
     def _link_stats_update(self, link):
-        if not (link.dp_id and link.port_name and link.uid):
+        if not (link.dp_id and link.port_no and link.uid):
             return
-        speed = self._link_curr_speed(link.dp_id, link.port_name)
-        rate = self._link_tx_rate(link.dp_id, link.port_name)
+        speed = self._link_curr_speed(link.dp_id, link.port_no)
+        rate = self._link_tx_rate(link.dp_id, link.port_no)
         if speed and rate:
             utilization = round(rate*8*100/speed, 3)
             if speed != link.bandwidth or utilization != link.utilization:
@@ -43,7 +44,7 @@ class PrometheusQuery():
                     self.handler(link)
 
     def _query(self, dp_id, port_name, stat_key, rate=True):
-        query = '%s{job="gauge",dp_id="%s",port_name="%s"}' % (stat_key, dp_id, port_name)
+        query = '%s{job="gauge",dp_id="%s",port="%s"}' % (stat_key, dp_id, port_name)
         if rate:
             query = 'rate(%s[%dm])' % (query, self.interval/60)
         url = self.endpoint + '?query=%s' % query
