@@ -57,7 +57,11 @@ class TopologyManager(AppBase):
         self.prefixes = collections.defaultdict(set)
         self.nexthops = set()
         self.controller = None
-        self.stats_collector = PrometheusQuery(self.link_stats_change_handler)
+        self.stats_collector = PrometheusQuery(
+                self.link_stats_change_handler,
+                os.environ.get('GRCP_PROM_HOST', '127.0.0.1'),
+                os.environ.get('GRCP_PROM_PORT', 9090),
+                os.environ.get('GRCP_PROM_INTERVAL', 60))
         model.initialize(
                 neo4j_uri=os.environ.get('GRCP_DB_URI'),
                 neo4j_user=os.environ.get('GRCP_DB_USER'),

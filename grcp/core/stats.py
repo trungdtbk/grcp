@@ -8,10 +8,10 @@ from . import model
 
 class PrometheusQuery():
 
-    def __init__(self, handler, prom_host='127.0.0.1', prom_port=9090):
+    def __init__(self, handler, prom_host='127.0.0.1', prom_port=9090, interval=60):
         self.handler = handler
         self.endpoint = 'http://%s:%s/api/v1/query' % (prom_host, prom_port)
-        self.interval = 120 # seconds
+        self.interval = interval # in second
 
     def run(self):
         while True:
