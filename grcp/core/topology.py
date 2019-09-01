@@ -184,7 +184,7 @@ class TopologyManager(AppBase):
 
     def intra_link_up(self, router1, router2, dp, port, vlan, **properties):
         link = model.IntraLink.get_or_create(router1, router2,
-                **{'state': 'up', 'dp': dp, 'port': port, 'vlan': vlan})
+                **{'state': 'up', 'dp_id': dp, 'port_no': port, 'vlan_vid': vlan})
         if link:
             logger.info('inra_link created in db: %s -> %s' % (router1, router2))
             self.send_event_to_observers(EventLinkUp(link))
