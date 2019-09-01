@@ -188,6 +188,8 @@ class TopologyManager(AppBase):
         if link:
             logger.info('inra_link created in db: %s -> %s' % (router1, router2))
             self.send_event_to_observers(EventLinkUp(link))
+        else:
+            logger.error('failed to create/update intra_link %s -> %s' % (router1, router2))
 
     def intra_link_down(self, router1, router2):
         link = model.IntraLink.get_or_create(router1, router2, **{'state': 'down'})

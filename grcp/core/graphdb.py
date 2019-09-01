@@ -13,6 +13,9 @@ This module is used by the model module which provides an abstraction to BGP rou
 """
 import time
 import json
+import logging
+
+logger = logging.getLogger('grcp.graphdb')
 
 DEFAULT_DB_URI = 'bolt://localhost:7687'
 DEFAULT_DB_USER = 'neo4j'
@@ -89,6 +92,7 @@ class Neo4J(GraphDB):
             with self.driver.session() as session:
                 return session.run(query, params)
         except self.ConstraintError:
+            logger.error('Error when executing %s: %s' % (query, e))
             pass
         except Exception as e:
             raise e
@@ -172,6 +176,7 @@ class Neo4J(GraphDB):
               '{set_str} RETURN src.uid AS src, dst.uid AS dst, {name}'
         qry = qry.format(src_match=src_match, dst_match=dst_match, name=kind, kind=kind, set_str=set_str)
         records = list(self.exec_query(qry))
+        logger.debug('executed: %s' % qry)
         if records:
             return records[0]
         return None
