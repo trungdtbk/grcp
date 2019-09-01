@@ -135,8 +135,8 @@ class RouterController(object):
                 self._process_link_state_msg(msg)
             elif msg_type in ['nexthop_up', 'nexthop_down']:
                 self._process_nexthop_msg(msg)
-        except:
-            logger.error('error encountered when handling msg')
+        except Exception as e:
+            logger.error('error encountered when handling msg %s: %s' % (msg, e))
             traceback.print_exc()
 
     def receive_msg(self, conn_id, msg):
