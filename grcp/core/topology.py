@@ -176,6 +176,9 @@ class TopologyManager(AppBase):
         link = model.InterEgress.get_or_create(routerid, nexthop,
                 **{'state': 'up', 'pathid': pathid, 'dp_id': dp_id, 'port_no': port_no,
                     'port_name': port_name, 'vlan_vid': vlan_vid})
+        model.InterIngress.get_or_create(nexthop, routerid,
+                **{'state': 'up', 'dp_id': dp_id, 'port_no': port_no, 'port_name': port_name,
+                    'vlan_vid': vlan_vid})
         if link:
             logger.info('inter_egress link up: %s -> %s' % (routerid, nexthop))
             self.send_event_to_observers(EventLinkUp(link))
