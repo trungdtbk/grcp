@@ -24,6 +24,7 @@ class PrometheusQuery():
                 time.sleep(self.interval)
             except Exception as e:
                 logger.error('Error in querying stats: %s' % e)
+                time.sleep(self.interval)
 
     def links_stats_update(self):
         links = list(model.InterEgress.query().fetch()) + list(model.IntraLink.query().fetch())
@@ -35,9 +36,9 @@ class PrometheusQuery():
         if not (link.dp_id and link.port_no and link.uid):
             return
         speed = self._link_curr_speed(link.dp_id, link.port_no)
-        speed = speed * 1000 # OpenFlow reports port speed in kbps
         rate = self._link_tx_rate(link.dp_id, link.port_no)
         if speed and rate:
+            speed = speed * 1000 # OpenFlow reports port speed in kbps
             utilization = round(rate*8*100/speed, 3)
             if speed != link.bandwidth or utilization != link.utilization:
                 link = link.update(link.src, link.dst, bandwidth=speed, utilization=utilization)
