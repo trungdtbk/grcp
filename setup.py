@@ -27,7 +27,7 @@ setup(
     packages=find_packages(exclude=['test']),
     install_requires=[
             'neo4j-driver',
-            'twisted==16.0.0',
+            'twisted==19.7.0',
             'oslo.config',
             ]
     )
